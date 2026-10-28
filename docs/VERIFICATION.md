@@ -9,7 +9,7 @@ testado, como, e com quais evidências — incluindo o que **não** foi coberto.
 > **Produto 100% web (2026-10-28):** o empacotamento macOS deixa de fazer parte do aceite; o DMG
 > existente é legado de estudo. Entregas web já verificadas: landing pública (`website/`),
 > link preview/favicon, home web sem ferramentas de LAN e perfil do navegador persistido
-> (`verify-online` 18/18).
+> (`verify-online` 19/19).
 
 O app é um estudo de engenharia reversa independente, não afiliado à Gather Presence Inc.
 
@@ -183,7 +183,8 @@ Adicionado depois da verificação offline, sem mudar o comportamento Electron/L
 | O que | Como | Resultado |
 |---|---|---|
 | Build do servidor web | `npm run build && node deploy/build-online.mjs` | ✅ |
-| Sala única no navegador | `node deploy/verify-online.mjs` (Chrome real, devices fake) | ✅ **18/18**: `/join`, `client-config.json`, 2 jogadores com nomes únicos, canvas, chat, WebRTC peers ≥ 1, nenhum request externo, metas OG/favicon, home web clara (sem LAN), perfil persistido entre reloads |
+| Sala única no navegador | `node deploy/verify-online.mjs` (Chrome real, devices fake) | ✅ **19/19**: `/join`, `client-config.json` com 2 STUN, 2 jogadores com nomes únicos, canvas, chat, WebRTC peers ≥ 1, nenhum request externo, metas OG/favicon, home web clara (sem LAN), perfil persistido entre reloads |
+| Reconexão | `verify-online`: mata o servidor no meio da sala e sobe de novo | ✅ cliente reconecta sozinho (backoff com jitter, 10 tentativas) sem recarregar a página |
 | Landing pública | `node deploy/verify-online.mjs` (mesma rodada) | ✅ hero + assets `/site/*`, h1 único, skip link, alt nas imagens, zoom liberado, contraste medido ≥ 4.5:1, foco visível, sem overflow em 320px, `prefers-reduced-motion` respeitado, zero erros de JS ([desktop](online/landing.png) · [mobile](online/landing-mobile.png)) |
 | Acesso público real | Cloudflare Quick Tunnel + 2 navegadores em contextos separados via `https://…trycloudflare.com/join` | ✅ 2 pessoas, chat e mídia WebRTC peers=1 pela internet ([screenshot](online/online-public.png)) |
 | Regressão offline | `npm test` 30/30; `npm run test:e2e` 17/17 | ✅ |

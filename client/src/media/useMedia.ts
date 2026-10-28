@@ -51,6 +51,8 @@ interface PeerSession {
   pendingCandidates: RTCIceCandidateInit[]
   makingOffer: boolean
   ignoreOffer: boolean
+  /** Two-stage recovery after a network blip; cleared once the transport is healthy. */
+  recoveryTimer: ReturnType<typeof setTimeout> | null
 }
 
 interface MediaEngine {
@@ -183,6 +185,8 @@ export function useMedia(options: {
     const closePeer = (peerId: string) => {
       const session = peers.get(peerId)
       if (!session) return
+      if (session.recoveryTimer) clearTimeout(session.recoveryTimer)
+      session.recoveryTimer = null
       peers.delete(peerId)
       session.pc.onnegotiationneeded = null
       session.pc.onicecandidate = null
@@ -195,7 +199,7 @@ export function useMedia(options: {
 
     const createPeer = (peerId: string): PeerSession => {
       // Offline LAN only: no STUN/TURN, ICE uses host candidates.
-      const pc = new RTCPeerConnection({ iceServers })
+      const pc = new RTCPeerConnection({ iceServers, bundlePolicy: "max-bundle", iceCandidatePoolSize: 2 })
       const stream = new MediaStream()
       const audioEl = document.createElement("audio")
       // addTrack (not addTransceiver) so an answering peer's transceivers are matched
@@ -223,6 +227,7 @@ export function useMedia(options: {
         pendingCandidates: [],
         makingOffer: false,
         ignoreOffer: false,
+        recoveryTimer: null,
       }
 
       audioEl.autoplay = true
@@ -268,8 +273,35 @@ export function useMedia(options: {
       }
 
       pc.onconnectionstatechange = () => {
+        const connectionState = pc.connectionState
+        if (connectionState === "connected") {
+          if (session.recoveryTimer) clearTimeout(session.recoveryTimer)
+          session.recoveryTimer = null
+          return
+        }
         // A failed transport is recreated by reconcile(); a stuck session would linger otherwise.
-        if (pc.connectionState === "failed") closePeer(peerId)
+        if (connectionState === "failed") {
+          if (session.recoveryTimer) clearTimeout(session.recoveryTimer)
+          session.recoveryTimer = null
+          closePeer(peerId)
+          return
+        }
+        if (connectionState !== "disconnected" || session.recoveryTimer) return
+        // Network blip: let ICE recover on its own, then restart it once (initiator only),
+        // and finally drop the session so reconcile() builds a fresh one while still nearby.
+        session.recoveryTimer = setTimeout(() => {
+          session.recoveryTimer = null
+          if (pc.connectionState !== "disconnected") return
+          try {
+            if (isInitiator(selfIdRef.current ?? "", peerId)) pc.restartIce()
+          } catch {
+            // Transport already gone; the failure handler cleans up.
+          }
+          session.recoveryTimer = setTimeout(() => {
+            session.recoveryTimer = null
+            if (pc.connectionState === "disconnected" || pc.connectionState === "failed") closePeer(peerId)
+          }, 8000)
+        }, 4000)
       }
 
       peers.set(peerId, session)

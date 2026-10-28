@@ -39,7 +39,7 @@ node deploy/verify-online.mjs
 | `PORT` | `8080` | porta HTTP interna |
 | `CLIENT_DIR` | `dist/client` | diretório do cliente compilado |
 | `ROOM_NAME` | `Escritório online` | nome da sala na topbar |
-| `ICE_SERVERS` | `stun:stun.l.google.com:19302` | STUN/TURN p/ mídia na internet (JSON ou lista de URLs; vazio = STUN padrão) |
+| `ICE_SERVERS` | Google + Cloudflare STUN | STUN/TURN p/ mídia na internet (JSON ou lista de URLs; vazio = STUN padrão) |
 | `PUBLIC_URL` | auto (Render/Fly) | URL usada só nos logs p/ montar o link |
 
 Endpoints: `GET /` (landing), `GET /room` (app), `GET /join` (entrada direta, 302 →
@@ -56,8 +56,9 @@ Se a pasta não existir no deploy, `/` volta a servir o app (comportamento anter
 
 ## Mídia na internet (STUN/TURN)
 
-- Por padrão usa **STUN público** (`stun:stun.l.google.com:19302`), o que resolve a maioria das
-  redes residenciais.
+- Por padrão usa **dois STUN públicos** (`stun:stun.l.google.com:19302` e
+  `stun:stun.cloudflare.com:3478`), o que resolve a maioria das redes residenciais; se um estiver
+  bloqueado, o outro ainda coleta candidatos.
 - Redes corporativas/cone simétrico podem precisar de **TURN** (relay). Configure sem alterar código:
 
 ```bash
@@ -137,11 +138,12 @@ não para produção.
 ## Verificação feita (2026-10-28)
 
 - `npm run build && node deploy/build-online.mjs` ok.
-- `node deploy/verify-online.mjs` → **18/18** (link `/join`, `client-config.json`, 2 navegadores,
+- `node deploy/verify-online.mjs` → **19/19** (link `/join`, `client-config.json`, 2 navegadores,
   nomes únicos, canvas, chat, WebRTC por proximidade, nenhum request externo, metas OG/favicon,
   landing em `/` com assets `/site/*`, home web clara, perfil persistido entre reloads,
   acessibilidade da landing (h1 único, skip link, alt, zoom), contraste medido ≥ 4.5:1, foco visível,
-  sem rolagem horizontal em 320px e `prefers-reduced-motion` respeitado).
+  sem rolagem horizontal em 320px, `prefers-reduced-motion` respeitado e **reconexão automática**
+  (derrubar e subir o servidor no meio da sala — o cliente volta sozinho).
 - **Túnel público** `https://…trycloudflare.com/join`: 2 navegadores em contextos separados
   entraram, 2 pessoas, chat e **mídia WebRTC peers=1** pela internet
   ([screenshot](online/online-public.png)). Landing: [desktop](online/landing.png) e

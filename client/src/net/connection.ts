@@ -13,7 +13,7 @@ interface ConnectionEvents {
 
 type EventName = keyof ConnectionEvents
 
-const MAX_RECONNECT_ATTEMPTS = 5
+const MAX_RECONNECT_ATTEMPTS = 10
 
 /**
  * WebSocket client for the LAN room server. The page is always served by the host
@@ -159,12 +159,13 @@ class RoomConnection {
     }
     if (this.reconnectAttempt >= MAX_RECONNECT_ATTEMPTS || !this.profile) {
       actions.setConnection("error")
-      actions.setError("Conexão com a sala perdida. Verifique a rede local.")
+      actions.setError("Conexão com a sala perdida. Verifique sua internet e recarregue a página se continuar.")
       return
     }
     this.reconnectAttempt += 1
     actions.setConnection("reconnecting")
-    const delay = Math.min(8000, 500 * 2 ** this.reconnectAttempt)
+    // Jitter avoids every client in the room retrying on the same tick after a server blip.
+    const delay = Math.min(10000, 500 * 2 ** this.reconnectAttempt) + Math.round(Math.random() * 250)
     this.reconnectTimer = setTimeout(() => {
       if (!this.profile) return
       this.connect(this.profile).catch(() => {

@@ -87,18 +87,33 @@ async function main() {
   const origin = `http://127.0.0.1:${port}`
   const env = { ...process.env, PORT: String(port), ROOM_NAME, ICE_SERVERS: "" }
   delete env.ELECTRON_RUN_AS_NODE
-  const server = spawn(process.execPath, [SERVER], { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] })
   const serverLogs = []
-  server.stdout.on("data", (chunk) => serverLogs.push(String(chunk)))
-  server.stderr.on("data", (chunk) => serverLogs.push(String(chunk)))
+  let server = null
   let browser = null
   let failed = false
 
-  try {
+  const startServer = async () => {
+    server = spawn(process.execPath, [SERVER], { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] })
+    server.stdout.on("data", (chunk) => serverLogs.push(String(chunk)))
+    server.stderr.on("data", (chunk) => serverLogs.push(String(chunk)))
     await waitFor("servidor /healthz", async () => {
-      const response = await fetch(`${origin}/healthz`)
-      return response.ok
+      try {
+        return (await fetch(`${origin}/healthz`)).ok
+      } catch {
+        return false
+      }
     }, 20000)
+  }
+  const stopServer = async () => {
+    if (!server) return
+    server.kill("SIGTERM")
+    await Promise.race([new Promise((resolve) => server.once("exit", resolve)), sleep(5000)])
+    if (server.exitCode === null) server.kill("SIGKILL")
+    server = null
+  }
+
+  try {
+    await startServer()
     log(`servidor online em ${origin}`)
 
     const joinResponse = await fetch(`${origin}/join`, { redirect: "manual" })
@@ -110,8 +125,11 @@ async function main() {
     }
 
     const config = await (await fetch(`${origin}/client-config.json`)).json()
-    if (config.online === true && Array.isArray(config.iceServers) && typeof config.roomName === "string") {
-      pass("client-config.json", `online=true, sala "${config.roomName}", ${config.iceServers.length} ICE server(s)`)
+    const iceUrls = (config.iceServers ?? []).flatMap((server) =>
+      Array.isArray(server.urls) ? server.urls : [server.urls],
+    )
+    if (config.online === true && typeof config.roomName === "string" && iceUrls.length >= 2) {
+      pass("client-config.json", `online=true, sala "${config.roomName}", STUN: ${iceUrls.length} URLs`)
     } else {
       fail("client-config.json", JSON.stringify(config))
       failed = true
@@ -248,6 +266,23 @@ async function main() {
     await visitor.click('[data-testid="home-open-office"]')
     await visitor.waitForSelector('[data-testid="office-canvas"]', { timeout: 30000 })
     await waitFor("visitante conectado", async () => (await stateOf(visitor))?.connection === "connected", 20000)
+
+    // NET-3 — o servidor cai e volta: o cliente precisa reconectar sozinho (backoff + jitter)
+    await stopServer()
+    try {
+      await waitFor("queda detectada", async () => (await stateOf(visitor))?.connection !== "connected", 20000)
+      await sleep(1200)
+    } finally {
+      await startServer()
+    }
+    try {
+      await waitFor("reconexão automática", async () => (await stateOf(visitor))?.connection === "connected", 45000)
+      pass("reconexão WS automática após queda do servidor", "voltou a conectar sem recarregar a página")
+    } catch (error) {
+      fail("reconexão WS automática", error.message)
+      failed = true
+    }
+
     await visitor.goto(`${origin}/room`, { waitUntil: "domcontentloaded", timeout: 30000 })
     await visitor.waitForSelector('[data-testid="home-name"]', { timeout: 20000 })
     const restored = await visitor.inputValue('[data-testid="home-name"]')
@@ -378,9 +413,7 @@ async function main() {
     if (serverLogs.length > 0) log(`  log do servidor:\n${serverLogs.join("")}`)
   } finally {
     await browser?.close().catch(() => undefined)
-    server.kill("SIGTERM")
-    await Promise.race([new Promise((resolve) => server.once("exit", resolve)), sleep(5000)])
-    if (server.exitCode === null) server.kill("SIGKILL")
+    await stopServer()
   }
 
   log("\n══════════════════════════════════════════")

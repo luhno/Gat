@@ -12,7 +12,9 @@ import path from "node:path"
 
 import { startRoomServer, type IceServerConfig } from "../server/server"
 
-const DEFAULT_ICE: IceServerConfig[] = [{ urls: "stun:stun.l.google.com:19302" }]
+const DEFAULT_ICE: IceServerConfig[] = [
+  { urls: ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
+]
 
 const parseIceServers = (raw: string | undefined): IceServerConfig[] => {
   // Sem configuração (ou vazio) usa o STUN público padrão; [] explícito desabilita.
@@ -60,7 +62,7 @@ async function main(): Promise<void> {
   console.log(hasWebsite ? `[online] landing em ${base}/ · app em ${base}/room` : `[online] app em ${base}/`)
   console.log(`[online] link único de entrada: ${base}/join`)
   console.log(
-    `[online] ice: ${process.env.ICE_SERVERS ? "ICE_SERVERS configurado" : "padrão stun:stun.l.google.com:19302"}`,
+    `[online] ice: ${process.env.ICE_SERVERS ? "ICE_SERVERS configurado" : "padrão Google + Cloudflare STUN"}`,
   )
 
   let closing = false

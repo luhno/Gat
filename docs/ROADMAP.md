@@ -88,7 +88,7 @@ Objetivo: transformar o online funcional em algo que dá para mandar para qualqu
 
 | # | Entrega | O que muda (mínimo) | Aceite observável | Esforço |
 |---|---|---|---|---|
-| ✅ T1.0 | Landing pública | site estático em `website/` servido em `/` (app em `/room`), com OG, a11y e contraste verificados | `verify-online` 18/18 | 1 d |
+| ✅ T1.0 | Landing pública | site estático em `website/` servido em `/` (app em `/room`), com OG, a11y e contraste verificados | `verify-online` 19/19 | 1 d |
 | T1.1 | Deploy fixo | Render Free (Blueprint `render.yaml`), health check `/healthz`, doc "deploy em 5 min"; uptime/monitor opcional documentado | URL pública estável; `/healthz` 200; `/join` abre a sala; cold start explicado | 0,5 d (usuário cria conta) |
 | ✅ T1.2 | Link preview + favicon | meta `description`, Open Graph/Twitter no `index.html`; favicon e `theme-color` | colar o link no WhatsApp/Discord mostra DittoApp + descrição; favicon correto | 0,5 d |
 | ✅ T1.3 | Nome/avatar persistidos no navegador | `localStorage` para perfil quando não há bridge desktop; restaurar no boot; opção de limpar | recarregar e abrir nova aba mantém nome/avatar; anônimo vira `Convidado NNNN` | 1 d |
@@ -130,6 +130,87 @@ repo definida, coturn/TURN próprio, limites/quotas e fila, revisão de seguran�
 metas de acessibilidade (WCAG AA). ~~Build macOS assinado/notarizado~~ — não faz parte do produto web;
 o empacotamento Electron fica arquivado como legado de estudo.
 
+## Plano técnico — mídia, conectividade e QoL (detalhado)
+
+Baseline hoje: câmera/mic por `getUserMedia` (640×360@24, device selection via replaceTrack),
+tela por `getDisplayMedia` (Electron usa o handler do shell; web usa o picker do navegador), malha
+WebRTC peer-a-peer com STUN (sem TURN), reconexão WS com 5 tentativas, sem diagnóstico de conexão na
+UI, sem prévia local, sem áudio de tela, sem pausa de compartilhamento e sem controles de bitrate.
+O modo offline/LAN continua gate de regressão (e2e 17/17); tudo abaixo é web-first.
+
+Ordem recomendada: **NET → WC → SS → QoL** (conectividade e diagnóstico primeiro, porque é o que
+faz os outros módulos parecerem bons ou ruins na internet).
+
+### NET — conectividade online
+
+| # | Entrega | Mudança mínima | Arquivos | Aceite | Esf. |
+|---|---|---|---|---|---|
+| ✅ NET-1 | ICE padrão robusto | 2 STUN (Google + Cloudflare) por padrão; `ICE_SERVERS` continua sobrescrevendo | `src/online/main.ts` | `/client-config.json` com ≥ 2 URLs de STUN | 0,25 d |
+| ✅ NET-2 | Recuperação de ICE | `bundlePolicy: max-bundle`, `iceCandidatePoolSize`, `restartIce()` após blip de rede e queda limpa com recreação pelo watchdog | `client/src/media/useMedia.ts` | blip de rede < 10 s volta sem recrear a sessão; sessão que não volta é recriada | 0,5 d |
+| ✅ NET-3 | Reconexão WS resiliente | 10 tentativas com backoff + jitter, mensagem genérica de internet | `client/src/net/connection.ts` | tirar/voltar rede do navegador reconecta sozinho (check e2e online) | 0,25 d |
+| NET-4 | Retomada de sessão | `join` com token de sessão; servidor mantém o jogador por ~30 s (mesmo id/posição/tela) em vez de `playerLeft` imediato | `src/server/room.ts`, `src/shared/protocol.ts`, `src/online/main.ts`, `client/src/net/connection.ts` | queda de 10 s volta como o mesmo jogador, sem reaparecer no spawn; teste unitário do grace period | 1–2 d |
+| NET-5 | Diagnóstico de conexão na UI | `getStats`: tipo de par ICE (host/srflx/relay), RTT, jitter, perda; seção “Conexão” em Configurações + “copiar diagnóstico” | `client/src/media/useMedia.ts`, `client/src/components/SettingsPanel.tsx` | tela mostra direto/relay e RTT; sem expor dados sensíveis | 1 d |
+| NET-6 | TURN de produção | endpoint `/turn-credentials` (coturn REST/HMAC) opcional por env + doc; fallback `ICE_SERVERS` | `src/server/server.ts`, `src/online/main.ts`, `docs/ONLINE_DEPLOY.md` | par relay aparece no diagnóstico com credencial expirada corretamente | 1 d |
+| NET-7 | Qualidade adaptativa | se relay/RTT alto: baixar resolução/FPS e bitrate via `sender.setParameters`; reduzir vídeo remoto sob perda alta | `client/src/media/useMedia.ts` | gravação de stats mostra queda de bitrate ao limitar rede | 1–2 d |
+| NET-8 | Cold start / primeira carga | primeira conexão com timeout maior e estado “acordando a sala” no overlay; retry automático extra | `client/src/net/connection.ts`, `client/src/components/ConnectionOverlay.tsx` | abrir a sala no Render após dormir funciona sem reload manual | 0,5 d |
+
+### WC — webcam
+
+| # | Entrega | Mudança mínima | Aceite | Esf. |
+|---|---|---|---|---|
+| WC-1 | Prévia local espelhada | tile da própria câmera no HUD (espelhado, sem áudio) | ver a própria câmera ao ligar/desligar | 0,5 d |
+| WC-2 | Presets de qualidade | 360p@24 (padrão) e 720p@30; persistir no navegador/desktop | trocar preset sem recarregar; bitrate/CPU menores no 360p | 0,5 d |
+| WC-3 | Hot-plug de câmera | `devicechange`: dispositivo sumiu → aviso + fallback para o padrão; plugado → aparece na lista | despluggar webcam não quebra a sala | 0,5 d |
+| WC-4 | Câmera no celular | `facingMode` + botão front/back quando houver 2 câmeras | trocar front/back no celular | 0,5 d |
+| WC-5 | Troca de câmera sem renegociação | validar `replaceTrack` (já existe) com 2 dispositivos e teste | trocar device não derruba peers | 0,25 d |
+| WC-6 | Teste de câmera/mic | seção em Configurações: preview + medidor de nível do mic + botão testar | ver nível e imagem sem entrar na sala | 1 d |
+| WC-7 | Erros acionáveis | permissão negada/device ocupado: mensagem com próxima ação + “tentar de novo” | erro não bloqueia chat/sala; dá para recuperar sem reload | 0,5 d |
+| WC-8 | Câmera desligada | avatar/foto no lugar do vídeo remoto; remoto vê o avatar atualizado | par desligar câmera mostra avatar nos dois lados | 0,25 d |
+
+### SS — compartilhamento de tela
+
+| # | Entrega | Mudança mínima | Aceite | Esf. |
+|---|---|---|---|---|
+| SS-1 | Áudio do sistema/aba | `getDisplayMedia({ video, audio })`; track de áudio separado no sender; volume próprio na UI | som da tela chega no guest (Chrome/desktop); mic continua separado | 1–1,5 d |
+| SS-2 | Qualidade e `contentHint` | presets 720p/1080p + `contentHint` (`detail` p/ texto, `motion` p/ vídeo) + bitrate via `setParameters` | texto legível; movimento sem travar; preset aplica na hora | 0,5–1 d |
+| SS-3 | Pausar/retomar | pausa via `replaceTrack(null)` ou track encerrada sem derrubar sessão; indicador “tela pausada” | pausar mantém o peer e o painel; retomar volta a tela | 0,5 d |
+| SS-4 | Múltiplos sharers | hoje só o primeiro aparece; adicionar seletor/carrossel de telas compartilhadas | 2 pessoas compartilhando aparecem na UI | 1 d |
+| SS-5 | Picker/limitações | cancelar picker = silencioso (já ok); erro por SO/navegador com mensagem; iOS não suporta → mensagem clara | nenhum caminho silencioso sem feedback | 0,5 d |
+| SS-6 | Estado da câmera | compartilhar com câmera off e restaurar câmera ao parar (já restaura); testar | parar tela devolve a câmera ao par | 0,25 d |
+| SS-7 | Painel do viewer | expandir/fullscreen, ajuste de aspecto, fechar persistente por sharer | tela grande legível sem sair da sala | 0,5 d |
+
+### QoL — prioridades
+
+| # | Entrega | Aceite | Esf. |
+|---|---|---|---|
+| QoL-1 | Mute/deafen + push-to-talk | atalhos globais; ícones de estado; PTT configurável | 0,5–1 d |
+| QoL-2 | Volume por pessoa + quem fala | sliders por participante; anel de fala no avatar | 1 d |
+| QoL-3 | Menções e notificações | `@nome` destacado, badge, notificação nativa do navegador (com permissão) | 1 d |
+| QoL-4 | Mobile/touch (T1.7) | joystick + ações + safe-area; chat em tela cheia | 1–2 d |
+| QoL-5 | Navegação no mapa | zoom/pan, minimapa, “onde estou”, seguir pessoa | 1–2 d |
+| QoL-6 | Compartilhar em 1 clique | botão no escritório copia `/join`; share sheet no celular | 0,25 d |
+| QoL-7 | Ajuda e atalhos | overlay “?” com atalhos, foco em painéis, Esc consistente | 0,5 d |
+| QoL-8 | Preferências web | status, preset de câmera e dispositivo escolhidos persistidos no navegador | 0,5 d |
+| QoL-9 | Estados e erros | reconexão visível (T1.8), sala cheia, sem rede, picker cancelado | 0,5 d |
+
+### Critérios de aceite globais para qualquer entrega deste bloco
+
+- `npm run typecheck`, `npm test`, `npm run test:e2e` (offline 17/17) e
+  `node deploy/verify-online.mjs` (19/19 + novos checks) verdes.
+- Nenhum request externo novo na página; TURN/STUN só via `/client-config.json`.
+- Stats de mídia medidos (`getStats`), não estimados; documentar o número antes/depois nas tarefas
+  de bitrate/qualidade.
+- Mobile: testar em Chrome Android e Safari iOS reais; degradar com mensagem quando o navegador não
+  suporta (ex.: `getDisplayMedia` no iOS).
+- Acessibilidade dos novos controles: nome acessível, foco visível, alvo ≥ 24 px (44 px no touch).
+
+### Primeiro sprint sugerido (5–7 dias)
+
+NET-3 refinamento + NET-5 (diagnóstico) + NET-4 (retomada) → WC-1/WC-2/WC-6/WC-7 →
+SS-1/SS-2/SS-3 → QoL-1/QoL-6, fechando com uma rodada de stats e uma de reconexão real.
+
+Protótipo já entregue nesta rodada: **NET-1, NET-2 e NET-3** (ver commits e `verify-online`).
+
 ## Riscos e mitigação
 
 | Risco | Mitigação |
@@ -153,7 +234,7 @@ o empacotamento Electron fica arquivado como legado de estudo.
 ## Progresso e próximo passo
 
 - M0 (rebrand), **T1.0 (landing pública)** e T1.2/T1.3/T1.4 (link preview/favicon, perfil persistido
-  no navegador, home web) **concluídos** — verificação online 18/18 e regressão offline 17/17.
+  no navegador, home web) **concluídos** — verificação online 19/19 e regressão offline 17/17.
 - **Pendente do usuário:** criar o serviço Render (`https://render.com/deploy?repo=https://github.com/luhno/Gat`)
   e informar a URL para eu validar o T1.1.
 - Próximas entregas web na ordem: **T1.6 PWA**, **T1.7 mobile/touch**, **T1.8 reconexão**, **T1.9 mídia/TURN**,
