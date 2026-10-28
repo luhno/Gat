@@ -27,6 +27,8 @@ export interface AvatarDraw {
   isSelf?: boolean
   /** Remote peer is currently speaking (drives a soft activity ring). */
   speaking?: boolean
+  /** False under reduced motion: the ring keeps its color but stops pulsing. */
+  speakingPulse?: boolean
 }
 
 /** Screen-space offset from the feet box center to the top of the avatar (world px at tileSize 32). */
@@ -78,7 +80,7 @@ export function drawAvatar(ctx: CanvasRenderingContext2D, look: AvatarLook, view
   }
   if (view.speaking) {
     // Soft green pulse: a static color cue plus motion, so reduced motion still reads.
-    const pulse = 1 + Math.sin(view.time * 5 + phase) * 0.06
+    const pulse = view.speakingPulse === false ? 1 : 1 + Math.sin(view.time * 5 + phase) * 0.06
     ctx.strokeStyle = "rgba(74,222,128,0.85)"
     ctx.lineWidth = 1.8 * u
     ctx.beginPath()

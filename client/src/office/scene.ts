@@ -29,6 +29,8 @@ export interface RenderPlayer {
   status: UserStatus
   /** Remote peer is speaking right now (canvas activity ring). */
   speaking?: boolean
+  /** False when the user prefers reduced motion (static ring). */
+  speakingPulse?: boolean
 }
 
 export const worldView = (cameraX: number, cameraY: number, screenW: number, screenH: number, zoom: number): ViewRect => {
@@ -528,6 +530,7 @@ export const drawScene = (
             dir: player.dir,
             moving: player.moving,
             speaking: player.speaking,
+            speakingPulse: player.speakingPulse,
             time,
             tileSize: ts,
             phase: hash01(player.x * 0.01, player.y * 0.01) * Math.PI * 2,

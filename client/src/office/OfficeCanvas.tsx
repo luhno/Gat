@@ -5,6 +5,7 @@ import type { Direction, PlayerState } from "@shared/types"
 
 import { STATUS_COLORS } from "../components/palette"
 import { VideoTile } from "../media/VideoTile"
+import { isReducedMotion } from "../audio/uiSound"
 import { connection } from "../net/connection"
 import { getState, useStore } from "../state/store"
 import { AVATAR_LABEL_OFFSET } from "./avatar"
@@ -78,6 +79,7 @@ export function OfficeCanvas({ streams }: { streams: Map<string, MediaStream> })
     const visuals = new Map<string, RemoteVisual>()
     // Speaking activity comes from the media engine via a tiny dataset channel (no React re-render).
     let speakingPeers = new Set<string>()
+    let speakingPulse = true
     let lastSpeakingPoll = 0
 
     const resize = (): void => {
@@ -291,6 +293,7 @@ export function OfficeCanvas({ streams }: { streams: Map<string, MediaStream> })
             .split(",")
             .filter(Boolean),
         )
+        speakingPulse = !isReducedMotion()
       }
 
       const renderPlayers: RenderPlayer[] = []
@@ -307,6 +310,7 @@ export function OfficeCanvas({ streams }: { streams: Map<string, MediaStream> })
           hairStyle: self?.hairStyle ?? stateNow.profile.hairStyle,
           status: self?.status ?? stateNow.profile.status,
           speaking: Boolean(stateNow.selfId && speakingPeers.has(stateNow.selfId)),
+          speakingPulse,
         })
       }
       for (const [id, visual] of visuals) {
@@ -323,6 +327,7 @@ export function OfficeCanvas({ streams }: { streams: Map<string, MediaStream> })
           hairStyle: player.hairStyle,
           status: player.status,
           speaking: speakingPeers.has(id),
+          speakingPulse,
         })
       }
       drawScene(ctx, map, renderPlayers, stateNow.selfId, now / 1000, worldView(camera.x, camera.y, cssW, cssH, zoom))
