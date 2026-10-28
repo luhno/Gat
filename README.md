@@ -1,8 +1,9 @@
 # DittoApp
 
-Sala de escritório virtual privada: roda **100% offline/LAN como app desktop** e também como **sala
-pública no navegador, por um link único**. Feita a partir de engenharia reversa do `GatherV2.app`
-0.55.2 (macOS, Electron 44.4.3) — um estudo independente, **não afiliado ao Gather**.
+Sala de escritório virtual privada, **100% web**: um link único e todos entram no mesmo escritório
+pelo navegador, com chat e voz/vídeo por proximidade. O app Electron/LAN continua no repositório
+como modo offline/legado de estudo. Feita a partir de engenharia reversa do `GatherV2.app` 0.55.2
+(macOS, Electron 44.4.3) — um estudo independente, **não afiliado ao Gather**.
 
 Antes chamava-se *Gather Offline*; o nome atual é **DittoApp**.
 
@@ -11,7 +12,22 @@ Antes chamava-se *Gather Offline*; o nome atual é **DittoApp**.
 voz/vídeo por proximidade via WebRTC, com multiplayer na LAN e, opcionalmente, sala pública na web
 por link único.
 
-## Começando
+## Sala web (produto principal)
+
+```bash
+git clone https://github.com/luhno/Gat.git
+cd Gat
+npm install
+npm run build
+node deploy/build-online.mjs
+PORT=8080 ROOM_NAME="Escritório online" node dist/online/server.cjs
+# abra http://localhost:8080  (home)  ou  http://localhost:8080/join (entrada direta)
+```
+
+Deploy grátis e link público: [`docs/ONLINE_DEPLOY.md`](docs/ONLINE_DEPLOY.md).
+Verificação do modo web: `node deploy/verify-online.mjs`.
+
+## App desktop (legado/estudo)
 
 ```bash
 git clone https://github.com/luhno/Gat.git

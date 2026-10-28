@@ -120,16 +120,20 @@ export function HomeScreen() {
     status: profile.status,
   }
 
+  // Web (no desktop bridge): single shared room, no LAN tools.
+  const web = !hasDesktopBridge
+  const shareUrl = `${window.location.origin}/join`
+
   return (
     <div className="home">
       <header className="home-header">
         <div className="home-brand">
           <span className="home-logo" aria-hidden="true">
-            G
+            D
           </span>
           <div>
             <h1>DittoApp</h1>
-            <p>Seu escritório na rede local — sem internet, sem conta.</p>
+            <p>{web ? "Entre pelo link e pronto — sem instalação, sem conta." : "Seu escritório na rede local — sem internet, sem conta."}</p>
           </div>
         </div>
       </header>
@@ -259,90 +263,107 @@ export function HomeScreen() {
             onClick={() => void openOffice()}
             disabled={connecting}
           >
-            {connecting ? "Conectando…" : isGuest ? "Entrar no escritório do host" : "Abrir meu escritório"}
+            {connecting ? "Conectando…" : web ? "Entrar na sala" : isGuest ? "Entrar no escritório do host" : "Abrir meu escritório"}
           </button>
-          <p className="home-hint">Você será o host da sala neste computador.</p>
-        </section>
-
-        <section className="home-card home-room" aria-labelledby="home-room-title">
-          <h2 id="home-room-title">Sala na LAN</h2>
-
-          {hasDesktopBridge ? null : (
-            <Notice kind="info">
-              Você está no navegador. Abrir o escritório neste computador funciona; <strong>entrar na sala de outra pessoa</strong> exige o app
-              desktop.
-            </Notice>
+          {web ? (
+            <p className="home-hint">Sala única: todos que abrirem o link entram aqui.</p>
+          ) : (
+            <p className="home-hint">Você será o host da sala neste computador.</p>
           )}
-          {isGuest ? (
-            <div className="guest-banner">
-              <Notice kind="info">Você está conectado ao endereço LAN de outro computador.</Notice>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={leaveGuestRoom}>
-                Voltar ao meu app
-              </button>
-            </div>
-          ) : null}
-
-          <div className="lan-box" data-testid="home-lan-urls">
-            <h3>Endereços deste escritório</h3>
-            {desktop?.mode === "host" && desktop.lanUrls.length > 0 ? (
-              <>
-                <p className="home-hint">Compartilhe com colegas na mesma rede:</p>
-                <ul className="address-list">
-                  {desktop.lanUrls.map((url) => (
-                    <li key={url}>
-                      <code>{url}</code>
-                      <CopyButton text={url} label={`Copiar endereço ${url}`} />
-                    </li>
-                  ))}
-                  <li>
-                    <code>{desktop.localUrl}</code>
-                    <CopyButton text={desktop.localUrl} label="Copiar endereço local" />
-                  </li>
-                </ul>
-              </>
-            ) : (
-              <p className="home-hint">
-                {isGuest
-                  ? "Este computador está entrando na sala de outro host."
-                  : "Os endereços LAN aparecem aqui quando você abre o escritório pelo app desktop."}
-              </p>
-            )}
-          </div>
-
-          <form className="join-form" onSubmit={(event) => void submitJoin(event)}>
-            <h3>Entrar em sala da LAN</h3>
-            <label className="field">
-              <span>Endereço do host</span>
-              <input
-                data-testid="home-join-address"
-                value={joinAddress}
-                placeholder="192.168.0.10:8787"
-                inputMode="url"
-                autoComplete="off"
-                onChange={(event) => setJoinAddress(event.target.value)}
-                aria-label="Endereço da sala na LAN"
-                disabled={!hasDesktopBridge}
-              />
-            </label>
-            <button
-              type="submit"
-              className="btn btn-secondary"
-              data-testid="home-join-button"
-              disabled={!hasDesktopBridge || joining || !joinAddress.trim()}
-            >
-              {joining ? "Entrando…" : "Entrar na sala"}
-            </button>
-            {!hasDesktopBridge ? <p className="home-hint">Disponível apenas no app desktop.</p> : null}
-          </form>
-
-          {joinError ? <Notice kind="error">{joinError}</Notice> : null}
-          {formError ? <Notice kind="error">{formError}</Notice> : null}
-          {error ? <Notice kind="error">{error}</Notice> : null}
         </section>
+
+        {hasDesktopBridge ? (
+          <section className="home-card home-room" aria-labelledby="home-room-title">
+            <h2 id="home-room-title">Sala na LAN</h2>
+
+            {isGuest ? (
+              <div className="guest-banner">
+                <Notice kind="info">Você está conectado ao endereço LAN de outro computador.</Notice>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={leaveGuestRoom}>
+                  Voltar ao meu app
+                </button>
+              </div>
+            ) : null}
+
+            <div className="lan-box" data-testid="home-lan-urls">
+              <h3>Endereços deste escritório</h3>
+              {desktop?.mode === "host" && desktop.lanUrls.length > 0 ? (
+                <>
+                  <p className="home-hint">Compartilhe com colegas na mesma rede:</p>
+                  <ul className="address-list">
+                    {desktop.lanUrls.map((url) => (
+                      <li key={url}>
+                        <code>{url}</code>
+                        <CopyButton text={url} label={`Copiar endereço ${url}`} />
+                      </li>
+                    ))}
+                    <li>
+                      <code>{desktop.localUrl}</code>
+                      <CopyButton text={desktop.localUrl} label="Copiar endereço local" />
+                    </li>
+                  </ul>
+                </>
+              ) : (
+                <p className="home-hint">
+                  {isGuest
+                    ? "Este computador está entrando na sala de outro host."
+                    : "Os endereços LAN aparecem aqui quando você abre o escritório pelo app desktop."}
+                </p>
+              )}
+            </div>
+
+            <form className="join-form" onSubmit={(event) => void submitJoin(event)}>
+              <h3>Entrar em sala da LAN</h3>
+              <label className="field">
+                <span>Endereço do host</span>
+                <input
+                  data-testid="home-join-address"
+                  value={joinAddress}
+                  placeholder="192.168.0.10:8787"
+                  inputMode="url"
+                  autoComplete="off"
+                  onChange={(event) => setJoinAddress(event.target.value)}
+                  aria-label="Endereço da sala na LAN"
+                  disabled={!hasDesktopBridge}
+                />
+              </label>
+              <button
+                type="submit"
+                className="btn btn-secondary"
+                data-testid="home-join-button"
+                disabled={!hasDesktopBridge || joining || !joinAddress.trim()}
+              >
+                {joining ? "Entrando…" : "Entrar na sala"}
+              </button>
+              {!hasDesktopBridge ? <p className="home-hint">Disponível apenas no app desktop.</p> : null}
+            </form>
+
+            {joinError ? <Notice kind="error">{joinError}</Notice> : null}
+            {formError ? <Notice kind="error">{formError}</Notice> : null}
+            {error ? <Notice kind="error">{error}</Notice> : null}
+          </section>
+        ) : (
+          <section className="home-card home-room" aria-labelledby="home-room-title">
+            <h2 id="home-room-title">Sala</h2>
+            <p className="home-hint">Versão web: todos que abrirem este link entram na mesma sala (até 16 pessoas).</p>
+            <div className="lan-box" data-testid="web-room-link">
+              <h3>Link de entrada</h3>
+              <ul className="address-list">
+                <li>
+                  <code>{shareUrl}</code>
+                  <CopyButton text={shareUrl} label="Copiar link da sala" />
+                </li>
+              </ul>
+              <p className="home-hint">O app desktop (Electron) continua no repositório para uso offline na LAN.</p>
+            </div>
+            {formError ? <Notice kind="error">{formError}</Notice> : null}
+            {error ? <Notice kind="error">{error}</Notice> : null}
+          </section>
+        )}
       </main>
 
       <footer className="home-footer">
-        <span>100% offline · seus dados ficam nesta máquina</span>
+        <span>{web ? "Sala privada por link · sem instalação · sem telemetria" : "100% offline · seus dados ficam nesta máquina"}</span>
         <span className="home-footer-hint">Atalhos no escritório: M microfone · V câmera · C chat · P participantes · Esc fecha painéis</span>
       </footer>
     </div>

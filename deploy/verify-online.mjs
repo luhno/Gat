@@ -181,6 +181,51 @@ async function main() {
       failed = true
     }
 
+    // T1.2 — metas de compartilhamento/favicon no HTML servido
+    const html = await (await fetch(`${origin}/`)).text()
+    if (html.includes('property="og:title"') && html.includes("favicon.svg") && (await (await fetch(`${origin}/favicon.svg`)).headers.get("content-type") || "").includes("svg")) {
+      pass("metas de link preview + favicon servidos")
+    } else {
+      fail("metas de link preview + favicon", "og:title/favicon ausentes no HTML")
+      failed = true
+    }
+
+    // T1.4 — home web: sem ferramentas de LAN, CTA e link da sala
+    const visitorContext = await browser.newContext()
+    await visitorContext.grantPermissions(["camera", "microphone"], { origin })
+    const visitor = await visitorContext.newPage()
+    await visitor.goto(`${origin}/`, { waitUntil: "domcontentloaded", timeout: 30000 })
+    await visitor.waitForSelector('[data-testid="home-name"]', { timeout: 20000 })
+    const shareBlock = (await visitor.textContent('[data-testid="web-room-link"]').catch(() => null)) ?? ""
+    const lanFields = await visitor.locator('[data-testid="home-join-address"]').count()
+    const cta = ((await visitor.textContent('[data-testid="home-open-office"]')) ?? "").trim()
+    if (shareBlock.includes("/join") && lanFields === 0 && cta.includes("Entrar na sala")) {
+      pass("home web clara (link da sala, sem LAN, CTA)")
+    } else {
+      fail("home web clara", `share=${shareBlock.slice(0, 40)} lanFields=${lanFields} cta="${cta}"`)
+      failed = true
+    }
+
+    // T1.3 — perfil do navegador persiste entre reloads
+    await visitor.screenshot({ path: path.join(SHOTS, "online-home.png") })
+    log("  📷 docs/online/online-home.png")
+
+    const visitorName = "Visitante Persistente"
+    await visitor.fill('[data-testid="home-name"]', visitorName)
+    await visitor.click('[data-testid="home-open-office"]')
+    await visitor.waitForSelector('[data-testid="office-canvas"]', { timeout: 30000 })
+    await waitFor("visitante conectado", async () => (await stateOf(visitor))?.connection === "connected", 20000)
+    await visitor.goto(`${origin}/`, { waitUntil: "domcontentloaded", timeout: 30000 })
+    await visitor.waitForSelector('[data-testid="home-name"]', { timeout: 20000 })
+    const restored = await visitor.inputValue('[data-testid="home-name"]')
+    if (restored === visitorName) {
+      pass("perfil web persistido no navegador", restored)
+    } else {
+      fail("perfil web persistido", `esperado "${visitorName}", veio "${restored}"`)
+      failed = true
+    }
+    await visitorContext.close()
+
     fs.mkdirSync(SHOTS, { recursive: true })
     await bia.page.screenshot({ path: path.join(SHOTS, "online-room.png") })
     log("  📷 docs/online/online-room.png")

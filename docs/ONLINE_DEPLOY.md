@@ -127,8 +127,9 @@ não para produção.
 ## Verificação feita (2026-10-28)
 
 - `npm run build && node deploy/build-online.mjs` ok.
-- `node deploy/verify-online.mjs` → **8/8** (link `/join`, `client-config.json`, 2 navegadores,
-  nomes únicos, canvas, chat, WebRTC por proximidade, nenhum request externo na página).
+- `node deploy/verify-online.mjs` → **11/11** (link `/join`, `client-config.json`, 2 navegadores,
+  nomes únicos, canvas, chat, WebRTC por proximidade, nenhum request externo, metas OG/favicon,
+  home web clara e perfil persistido entre reloads).
 - **Túnel público** `https://…trycloudflare.com/join`: 2 navegadores em contextos separados
   entraram, 2 pessoas, chat e **mídia WebRTC peers=1** pela internet
   ([screenshot](online/online-public.png)).

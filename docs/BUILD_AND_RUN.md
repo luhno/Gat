@@ -1,7 +1,11 @@
 # Build e execução — DittoApp
 
-Guia para compilar, rodar em modo host/guest na LAN, testar e empacotar o app. O app é um
-estudo de engenharia reversa independente, **não afiliado à Gather Presence Inc.**
+Guia de build e execução do DittoApp. **Decisão de produto (2026-10-28): o produto é 100% web** — o
+fluxo principal é compilar o cliente + servidor online (`npm run build` + `node deploy/build-online.mjs`)
+e rodar/deployar o servidor (seção "Modo online"). As seções de app desktop e empacotamento macOS
+ficam como **legado/estudo**; não é mais necessário gerar `.app`/`.dmg` nas próximas entregas.
+
+O app é um estudo de engenharia reversa independente, **não afiliado à Gather Presence Inc.**
 
 ## Pré-requisitos
 
@@ -137,7 +141,7 @@ Hospedagem grátis (Render, túnel Cloudflare, VM Oracle), STUN/TURN para mídia
 passo e limitações: **[`docs/ONLINE_DEPLOY.md`](ONLINE_DEPLOY.md)**. Há `Dockerfile` e `render.yaml`
 na raiz prontos para deploy.
 
-## Empacotamento
+## Empacotamento (legado macOS — não faz parte do produto web)
 
 ```bash
 npm run dist       # build + electron-builder --mac --dir

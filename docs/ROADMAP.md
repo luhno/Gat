@@ -82,16 +82,16 @@ Riscos/trade-offs: o userData muda de pasta → perfil/certificado locais são r
 pré-release; documentado); se já existir serviço Render com o nome antigo, o ideal é renomear o
 serviço no painel ou recriar pelo Blueprint.
 
-## Fase 1 — Online público "link-first" (1–2 semanas)
+## Fase 1 — Online público "link-first" (1–2 semanas) · em andamento
 
 Objetivo: transformar o online funcional em algo que dá para mandar para qualquer pessoa.
 
 | # | Entrega | O que muda (mínimo) | Aceite observável | Esforço |
 |---|---|---|---|---|
 | T1.1 | Deploy fixo | Render Free (Blueprint `render.yaml`), health check `/healthz`, doc "deploy em 5 min"; uptime/monitor opcional documentado | URL pública estável; `/healthz` 200; `/join` abre a sala; cold start explicado | 0,5 d (usuário cria conta) |
-| T1.2 | Link preview + favicon | meta `description`, Open Graph/Twitter no `index.html`; favicon e `theme-color` | colar o link no WhatsApp/Discord mostra DittoApp + descrição; favicon correto | 0,5 d |
-| T1.3 | Nome/avatar persistidos no navegador | `localStorage` para perfil quando não há bridge desktop; restaurar no boot; opção de limpar | recarregar e abrir nova aba mantém nome/avatar; anônimo vira `Convidado NNNN` | 1 d |
-| T1.4 | Home web clara | esconder seção LAN no navegador, CTA "Entrar na sala", campo nome, contador de pessoas, link copiável | usuário novo entra em 2 cliques sem instruções; sem textos de "host" enganosos | 1 d |
+| ✅ T1.2 | Link preview + favicon | meta `description`, Open Graph/Twitter no `index.html`; favicon e `theme-color` | colar o link no WhatsApp/Discord mostra DittoApp + descrição; favicon correto | 0,5 d |
+| ✅ T1.3 | Nome/avatar persistidos no navegador | `localStorage` para perfil quando não há bridge desktop; restaurar no boot; opção de limpar | recarregar e abrir nova aba mantém nome/avatar; anônimo vira `Convidado NNNN` | 1 d |
+| ✅ T1.4 | Home web clara | esconder seção LAN no navegador, CTA "Entrar na sala", campo nome, contador de pessoas, link copiável | usuário novo entra em 2 cliques sem instruções; sem textos de "host" enganosos | 1 d |
 | T1.5 | Compartilhar | botão copiar link + `navigator.share` (mobile); QR fica para a Fase 2 | copiar/share funcionam em desktop e mobile | 0,5 d |
 | T1.6 | PWA instalável | `manifest.webmanifest` + ícones + service worker cache do shell + página de fallback sem rede | "adicionar à tela inicial" no Android/iOS; reabrir offline mostra shell com aviso; WS continua funcionando quando online | 1–1,5 d |
 | T1.7 | Mobile/touch | canvas responsivo (viewport dinâmico), joystick/mobile controls, safe-area, esconder dicas de teclado, chat usável no celular | Safari iOS + Chrome Android: andar, abrir chat, mídia; sem overflow/zoom acidental | 2–3 d |
@@ -115,8 +115,8 @@ Priorizada por uso, sem adicionar novos donos/contratos grandes. Itens entram po
   da sessão visível ao entrar (já existe em memória), links clicáveis com aviso.
 - **Mapa**: zoom/pan (roda/gesto), minimapa, "seguir pessoa", "onde estou", preview de câmera do
   avatar remoto, paredes/colisão já ok.
-- **Desktop (Electron)**: mini mode/always-on-top, auto-launch, notificações nativas em menção,
-  atalhos globais customizáveis, deep link `ditto://` para link de sala.
+- **Desktop (Electron)** → *legado/estudo, fora das próximas entregas* (mini mode, auto-launch,
+  notificações nativas, deep link `ditto://`): fica no backlog sem prioridade.
 - **Acessibilidade**: navegação completa por teclado, foco em painéis, contraste, `prefers-reduced-motion`,
   anúncios de leitor de tela para chat/entrada/saída.
 - **i18n**: inglês (pt-BR continua default).
@@ -125,8 +125,9 @@ Priorizada por uso, sem adicionar novos donos/contratos grandes. Itens entram po
 ## Fase 3 — Polimento e escala (contínuo)
 
 Branding final (logo/landing), domínio e HTTPS próprios, releases automáticas + changelog, licença do
-repo definida, build macOS assinado/notarizado (custa US$ 99/ano, opcional), coturn/TURN próprio,
-limites/quotas e fila, revisão de segurança, multi-room maduro e metas de acessibilidade (WCAG AA).
+repo definida, coturn/TURN próprio, limites/quotas e fila, revisão de segurança, multi-room maduro e
+metas de acessibilidade (WCAG AA). ~~Build macOS assinado/notarizado~~ — não faz parte do produto web;
+o empacotamento Electron fica arquivado como legado de estudo.
 
 ## Riscos e mitigação
 
@@ -148,8 +149,11 @@ limites/quotas e fila, revisão de segurança, multi-room maduro e metas de aces
    reset aceito, repo `luhno/Gat` mantém o nome por enquanto — confirmar ou corrigir.
 5. **Licença do repo**: manter `UNLICENSED` por enquanto; abrir (MIT?) na Fase 3 — **recomendado**.
 
-## Próximo passo
+## Progresso e próximo passo
 
-1. ~~Executar **M0** (rename + rebuild + testes + DMG + push).~~ ✅
-2. Criar o serviço Render (usuário) e validar o link público com marca nova (eu rodo a verificação).
-3. Iniciar a Fase 1 na ordem recomendada, cada tarefa com commit e evidência no PR/push.
+- M0 (rebrand) e T1.2/T1.3/T1.4 (link preview/favicon, perfil persistido no navegador, home web)
+  **concluídos** — verificação online 11/11 e regressão offline 17/17.
+- **Pendente do usuário:** criar o serviço Render (`https://render.com/deploy?repo=https://github.com/luhno/Gat`)
+  e informar a URL para eu validar o T1.1.
+- Próximas entregas web na ordem: **T1.6 PWA**, **T1.7 mobile/touch**, **T1.8 reconexão**, **T1.9 mídia/TURN**,
+  **T1.10 capacidade**, **T1.5 compartilhar**, **T1.11 CI**, **T1.12 domínio**.

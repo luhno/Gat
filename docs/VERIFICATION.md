@@ -3,8 +3,12 @@
 Status: **VERDE** (verificado em 2026-10-28). Este documento é o relatório reproduzível do que foi
 testado, como, e com quais evidências — incluindo o que **não** foi coberto.
 
-> **Rebrand M0 (2026-10-28):** todas as evidências abaixo foram revalidadas com a marca **DittoApp**
-> (offline e2e 17/17, online 8/8 e DMG `DittoApp-1.0.0-arm64.dmg`); screenshots regenerados.
+> **Rebrand M0 (2026-10-28):** evidências revalidadas com a marca **DittoApp** (offline e2e 17/17,
+> online 11/11, DMG `DittoApp-1.0.0-arm64.dmg`); screenshots regenerados.
+>
+> **Produto 100% web (2026-10-28):** o empacotamento macOS deixa de fazer parte do aceite; o DMG
+> existente é legado de estudo. Entregas web da Fase 1 já verificadas: link preview/favicon, home
+> web sem ferramentas de LAN e perfil do navegador persistido (`verify-online` 11/11).
 
 O app é um estudo de engenharia reversa independente, não afiliado à Gather Presence Inc.
 
@@ -178,7 +182,7 @@ Adicionado depois da verificação offline, sem mudar o comportamento Electron/L
 | O que | Como | Resultado |
 |---|---|---|
 | Build do servidor web | `npm run build && node deploy/build-online.mjs` | ✅ |
-| Sala única no navegador | `node deploy/verify-online.mjs` (2 contextos Chrome reais, devices fake) | ✅ 8/8: `/join` redireciona, `client-config.json`, 2 jogadores com nomes únicos, canvas, chat, WebRTC peers ≥ 1, nenhum request externo na página |
+| Sala única no navegador | `node deploy/verify-online.mjs` (Chrome real, devices fake) | ✅ **11/11**: `/join`, `client-config.json`, 2 jogadores com nomes únicos, canvas, chat, WebRTC peers ≥ 1, nenhum request externo, metas OG/favicon, home web clara (sem LAN) e perfil persistido entre reloads |
 | Acesso público real | Cloudflare Quick Tunnel + 2 navegadores em contextos separados via `https://…trycloudflare.com/join` | ✅ 2 pessoas, chat e mídia WebRTC peers=1 pela internet ([screenshot](online/online-public.png)) |
 | Regressão offline | `npm test` 30/30; `npm run test:e2e` 17/17 | ✅ |
 

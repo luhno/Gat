@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react"
 import { MAX_NAME_LENGTH } from "@shared/constants"
 
 import { Notice } from "./components/Notice"
-import { bootstrapDesktop, hasDesktopBridge } from "./desktop"
+import { bootstrapDesktop, hasDesktopBridge, persistProfile } from "./desktop"
 import { HomeScreen } from "./home/HomeScreen"
 import { connection } from "./net/connection"
 import { OfficeScreen } from "./office/OfficeScreen"
@@ -42,6 +42,7 @@ export function App() {
       profile.name = requested || (hasDesktopBridge ? "Convidado" : `Convidado ${Math.floor(1000 + Math.random() * 9000)}`)
     }
     actions.setProfile(profile)
+    void persistProfile(profile).catch(() => undefined)
     connection.connect(profile).catch((cause: unknown) => {
       actions.setError(cause instanceof Error ? cause.message : "Não foi possível entrar na sala da LAN.")
     })
