@@ -67,6 +67,8 @@ DMG: `npx electron-builder --mac dmg`.
 - [`docs/ONLINE_DEPLOY.md`](docs/ONLINE_DEPLOY.md) — modo online no navegador (sala única por link,
   STUN/TURN, opções grátis de hospedagem e passo a passo de deploy).
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — plano de melhorias/QoL, rebrand DittoApp e fases de entrega.
+- [`docs/QOL_AND_JUICE.md`](docs/QOL_AND_JUICE.md) — roadmap focado em QoL e game juice (sons,
+  emotes, presença, ambiente e calibração de "feel").
 - [`docs/VERIFICATION.md`](docs/VERIFICATION.md) — matriz de verificação e evidências (screenshots).
 
 Artefatos da engenharia reversa ficam em `../recover/`: asar extraído, código-fonte recuperado dos

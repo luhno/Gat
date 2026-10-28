@@ -107,6 +107,8 @@ Ordem recomendada dentro da Fase 1: **T1.1 → T1.2 → T1.3 → T1.4 → T1.6 �
 
 ## Fase 2 — QoL de uso diário (2–4 semanas)
 
+> Roadmap focado e detalhado (com game juice, sons, emotes e calibração): [`QOL_AND_JUICE.md`](QOL_AND_JUICE.md).
+
 Priorizada por uso, sem adicionar novos donos/contratos grandes. Itens entram por feedback real.
 
 - **Mídia**: mute/deafen com atalhos (`M` já alterna mic; adicionar `D`/botão), push-to-talk, medidor
