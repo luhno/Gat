@@ -5,3 +5,7 @@ recover/
 *.log
 .DS_Store
 tests/e2e/artifacts/
+
+# agent tooling local (npx skills add)
+.claude/
+skills-lock.json

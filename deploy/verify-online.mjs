@@ -66,6 +66,22 @@ async function waitFor(what, probe, timeout = 20000, interval = 100) {
 
 const stateOf = (page) => page.evaluate(() => window.__gatherTest?.() ?? null)
 
+// WCAG contrast for rendered pairs (better-colors: measure, never estimate).
+const channel = (value) => {
+  const c = value / 255
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+}
+const luminance = ([r, g, b]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+const contrastRatio = (a, b) => {
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (light + 0.05) / (dark + 0.05)
+}
+const parseRgb = (value) => {
+  const match = /rgba?\(([^)]+)\)/.exec(value)
+  if (!match) return null
+  return match[1].split(",").slice(0, 3).map((part) => Number.parseFloat(part))
+}
+
 async function main() {
   const port = await freePort()
   const origin = `http://127.0.0.1:${port}`
@@ -86,7 +102,7 @@ async function main() {
     log(`servidor online em ${origin}`)
 
     const joinResponse = await fetch(`${origin}/join`, { redirect: "manual" })
-    if (joinResponse.status === 302 && joinResponse.headers.get("location") === "/?autojoin=1") {
+    if (joinResponse.status === 302 && joinResponse.headers.get("location") === "/room?autojoin=1") {
       pass("link único /join redireciona para a entrada autojoin")
     } else {
       fail("link /join", `status ${joinResponse.status} location ${joinResponse.headers.get("location")}`)
@@ -181,12 +197,29 @@ async function main() {
       failed = true
     }
 
-    // T1.2 — metas de compartilhamento/favicon no HTML servido
-    const html = await (await fetch(`${origin}/`)).text()
-    if (html.includes('property="og:title"') && html.includes("favicon.svg") && (await (await fetch(`${origin}/favicon.svg`)).headers.get("content-type") || "").includes("svg")) {
-      pass("metas de link preview + favicon servidos")
+    // Landing (website/) — metas de link preview + favicon + assets
+    const landingHtml = await (await fetch(`${origin}/`)).text()
+    const landingCss = await fetch(`${origin}/site/styles.css`)
+    const landingImage = await fetch(`${origin}/site/office.jpg`)
+    if (
+      landingHtml.includes("Um link.") &&
+      landingHtml.includes('property="og:title"') &&
+      landingHtml.includes("/site/styles.css") &&
+      landingHtml.includes('href="/join"')
+    ) {
+      pass("landing servida em / com título, OG e CTA para /join")
     } else {
-      fail("metas de link preview + favicon", "og:title/favicon ausentes no HTML")
+      fail("landing em /", "HTML sem hero/OG/CTA esperados")
+      failed = true
+    }
+    if (
+      (landingCss.headers.get("content-type") || "").includes("text/css") &&
+      landingImage.status === 200 &&
+      (landingImage.headers.get("content-type") || "").includes("image/jpeg")
+    ) {
+      pass("assets da landing servidos (/site/*)")
+    } else {
+      fail("assets da landing", `css=${landingCss.status} image=${landingImage.status}`)
       failed = true
     }
 
@@ -194,7 +227,7 @@ async function main() {
     const visitorContext = await browser.newContext()
     await visitorContext.grantPermissions(["camera", "microphone"], { origin })
     const visitor = await visitorContext.newPage()
-    await visitor.goto(`${origin}/`, { waitUntil: "domcontentloaded", timeout: 30000 })
+    await visitor.goto(`${origin}/room`, { waitUntil: "domcontentloaded", timeout: 30000 })
     await visitor.waitForSelector('[data-testid="home-name"]', { timeout: 20000 })
     const shareBlock = (await visitor.textContent('[data-testid="web-room-link"]').catch(() => null)) ?? ""
     const lanFields = await visitor.locator('[data-testid="home-join-address"]').count()
@@ -215,7 +248,7 @@ async function main() {
     await visitor.click('[data-testid="home-open-office"]')
     await visitor.waitForSelector('[data-testid="office-canvas"]', { timeout: 30000 })
     await waitFor("visitante conectado", async () => (await stateOf(visitor))?.connection === "connected", 20000)
-    await visitor.goto(`${origin}/`, { waitUntil: "domcontentloaded", timeout: 30000 })
+    await visitor.goto(`${origin}/room`, { waitUntil: "domcontentloaded", timeout: 30000 })
     await visitor.waitForSelector('[data-testid="home-name"]', { timeout: 20000 })
     const restored = await visitor.inputValue('[data-testid="home-name"]')
     if (restored === visitorName) {
@@ -227,6 +260,116 @@ async function main() {
     await visitorContext.close()
 
     fs.mkdirSync(SHOTS, { recursive: true })
+
+    // Landing — a11y básica, contraste medido, 320px e reduced motion
+    const landingContext = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+    const landing = await landingContext.newPage()
+    const landingErrors = []
+    landing.on("pageerror", (error) => landingErrors.push(String(error)))
+    await landing.goto(`${origin}/`, { waitUntil: "load", timeout: 30000 })
+    await landing.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
+    await landing.screenshot({ path: path.join(SHOTS, "landing.png"), fullPage: true, animations: "disabled" })
+    log("  📷 docs/online/landing.png")
+    const structure = await landing.evaluate(() => ({
+      h1: document.querySelectorAll("h1").length,
+      skip: Boolean(document.querySelector(".skip-link")),
+      imagesWithoutAlt: [...document.querySelectorAll("img")].filter((img) => !img.getAttribute("alt")).length,
+      zoomBlocked: /user-scalable=no|maximum-scale=1/.test(document.querySelector('meta[name="viewport"]')?.getAttribute("content") ?? ""),
+      details: document.querySelectorAll("details").length,
+    }))
+    if (
+      structure.h1 === 1 &&
+      structure.skip &&
+      structure.imagesWithoutAlt === 0 &&
+      !structure.zoomBlocked
+    ) {
+      pass("landing acessível (h1 único, skip link, alt, zoom liberado)", `${structure.details} FAQ items`)
+    } else {
+      fail("landing acessível", JSON.stringify(structure))
+      failed = true
+    }
+
+    const pairs = await landing.evaluate(() => {
+      const colorOf = (selector, property) => {
+        const element = document.querySelector(selector)
+        return element ? getComputedStyle(element)[property] : null
+      }
+      const bodyBg = getComputedStyle(document.body).backgroundColor
+      return [
+        { name: "texto principal", fg: colorOf("h1", "color"), bg: bodyBg, min: 4.5 },
+        { name: "texto secundário", fg: colorOf(".lede", "color"), bg: bodyBg, min: 4.5 },
+        { name: "nota", fg: colorOf(".hero-note", "color"), bg: bodyBg, min: 4.5 },
+        { name: "botão primário", fg: colorOf(".btn-primary", "color"), bg: colorOf(".btn-primary", "backgroundColor"), min: 4.5 },
+      ]
+    })
+    const contrastFailures = []
+    for (const pair of pairs) {
+      const fg = parseRgb(pair.fg ?? "")
+      const bg = parseRgb(pair.bg ?? "")
+      if (!fg || !bg) {
+        contrastFailures.push(`${pair.name}: cor não resolvida`)
+        continue
+      }
+      const ratio = contrastRatio(fg, bg)
+      if (ratio < pair.min) contrastFailures.push(`${pair.name}: ${ratio.toFixed(2)}:1 (<${pair.min})`)
+    }
+    if (contrastFailures.length === 0) {
+      pass("contraste da landing medido (texto e botão)", "pares ≥ 4.5:1")
+    } else {
+      fail("contraste da landing", contrastFailures.join("; "))
+      failed = true
+    }
+
+    await landing.keyboard.press("Tab")
+    const focusState = await landing.evaluate(() => {
+      const element = document.activeElement
+      const style = element ? getComputedStyle(element) : null
+      return { tag: element?.tagName ?? "", text: element?.textContent?.trim().slice(0, 40) ?? "", outline: style?.outlineStyle ?? "none", width: style?.outlineWidth ?? "0px" }
+    })
+    if (focusState.tag === "A" && focusState.outline !== "none" && Number.parseFloat(focusState.width) >= 2) {
+      pass("primeiro Tab = skip link com foco visível", `${focusState.text} · outline ${focusState.width}`)
+    } else {
+      fail("foco visível na landing", JSON.stringify(focusState))
+      failed = true
+    }
+    if (landingErrors.length === 0) {
+      pass("landing sem erros de JavaScript")
+    } else {
+      fail("landing JS", landingErrors[0])
+      failed = true
+    }
+    const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
+    const mobile = await mobileContext.newPage()
+    await mobile.goto(`${origin}/`, { waitUntil: "load", timeout: 30000 })
+    await mobile.screenshot({ path: path.join(SHOTS, "landing-mobile.png"), fullPage: true, animations: "disabled" })
+    log("  📷 docs/online/landing-mobile.png")
+    await mobileContext.close()
+
+    const narrowContext = await browser.newContext({ viewport: { width: 320, height: 720 } })
+    const narrow = await narrowContext.newPage()
+    await narrow.goto(`${origin}/`, { waitUntil: "load", timeout: 30000 })
+    const narrowOverflow = await narrow.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)
+    if (!narrowOverflow) {
+      pass("landing sem rolagem horizontal em 320px")
+    } else {
+      fail("landing em 320px", "scrollWidth > viewport")
+      failed = true
+    }
+    await narrowContext.close()
+
+    const reducedContext = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1280, height: 800 } })
+    const reduced = await reducedContext.newPage()
+    await reduced.goto(`${origin}/`, { waitUntil: "load", timeout: 30000 })
+    const animation = await reduced.evaluate(() => getComputedStyle(document.querySelector(".hero-copy > *")).animationName)
+    if (animation === "none") {
+      pass("landing respeita prefers-reduced-motion", "sem animação de entrada")
+    } else {
+      fail("prefers-reduced-motion", `animationName=${animation}`)
+      failed = true
+    }
+    await reducedContext.close()
+    await landingContext.close()
+
     await bia.page.screenshot({ path: path.join(SHOTS, "online-room.png") })
     log("  📷 docs/online/online-room.png")
   } catch (error) {

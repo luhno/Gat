@@ -23,8 +23,10 @@ export interface StartRoomServerOptions {
   roomName?: string
   /** ICE servers handed to browsers via /client-config.json (empty for the offline app). */
   iceServers?: IceServerConfig[]
-  /** Public web mode: exposes /client-config.json and the /join shortcut for a single room link. */
+  /** Public web mode: exposes /client-config.json, the /join shortcut and the optional landing page. */
   online?: boolean
+  /** Static landing site served at "/" in online mode (app stays at "/room"). */
+  websiteDir?: string | null
 }
 
 export interface RoomServer {
@@ -125,6 +127,7 @@ export async function startRoomServer(options: StartRoomServerOptions): Promise<
     throw new Error(`Porta inválida: ${String(basePort)}. Use um inteiro entre 0 e 65535.`)
   }
   const root = path.resolve(options.clientDir)
+  const websiteRoot = options.websiteDir ? path.resolve(options.websiteDir) : null
   const handleStatic = createStaticHandler(root)
   const clientConfig = JSON.stringify({
     online: options.online === true,
@@ -132,7 +135,23 @@ export async function startRoomServer(options: StartRoomServerOptions): Promise<
     iceServers: options.iceServers ?? [],
   })
 
-  const handleRequest = (req: IncomingMessage, res: ServerResponse): void => {
+  const serveFile = async (res: ServerResponse, filePath: string, method: string): Promise<boolean> => {
+    try {
+      const body = await fs.readFile(filePath)
+      res.writeHead(200, {
+        "content-type": MIME[path.extname(filePath).toLowerCase()] ?? "application/octet-stream",
+        "content-length": String(body.byteLength),
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+      })
+      res.end(method === "HEAD" ? undefined : body)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const handleRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const pathname = (req.url ?? "/").split("?")[0]
     if (req.method === "GET" && pathname === "/healthz") {
       send(res, 200, "ok")
@@ -143,19 +162,42 @@ export async function startRoomServer(options: StartRoomServerOptions): Promise<
       return
     }
     if (options.online === true && req.method === "GET" && pathname === "/join") {
-      res.writeHead(302, { location: "/?autojoin=1" })
+      res.writeHead(302, { location: "/room?autojoin=1" })
       res.end()
       return
     }
-    handleStatic(req, res).catch(() => {
+    if (options.online === true && websiteRoot && (req.method === "GET" || req.method === "HEAD")) {
+      if (pathname === "/") {
+        if (await serveFile(res, path.join(websiteRoot, "index.html"), req.method)) return
+      }
+      if (pathname.startsWith("/site/")) {
+        let relative: string
+        try {
+          relative = decodeURIComponent(pathname.slice("/site/".length))
+        } catch {
+          send(res, 400, "bad request")
+          return
+        }
+        const candidate = path.resolve(websiteRoot, relative)
+        if (candidate.startsWith(websiteRoot + path.sep) && (await serveFile(res, candidate, req.method))) return
+        send(res, 404, "not found")
+        return
+      }
+    }
+    try {
+      await handleStatic(req, res)
+    } catch {
       if (!res.headersSent) send(res, 500, "internal error")
       else res.destroy()
-    })
+    }
   }
 
+  const listener = (req: IncomingMessage, res: ServerResponse): void => {
+    void handleRequest(req, res)
+  }
   const server = options.tls
-    ? https.createServer({ key: options.tls.key, cert: options.tls.cert }, handleRequest)
-    : http.createServer(handleRequest)
+    ? https.createServer({ key: options.tls.key, cert: options.tls.cert }, listener)
+    : http.createServer(listener)
 
   const listenOnce = (port: number): Promise<void> =>
     new Promise((resolve, reject) => {

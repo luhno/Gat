@@ -132,9 +132,10 @@ offline continuam iguais.
 npm run build
 node deploy/build-online.mjs
 PORT=8080 ROOM_NAME="Escritório online" node dist/online/server.cjs
-# home:      http://localhost:8080
+# landing:   http://localhost:8080        (website/, HTML/CSS sem build)
+# app:       http://localhost:8080/room   (home: nome e avatar)
 # link único: http://localhost:8080/join  (entra direto; ?name=Ana opcional)
-node deploy/verify-online.mjs   # verificação automática com 2 contextos de Chrome
+node deploy/verify-online.mjs   # verificação automática com Chrome (landing + 2 jogadores)
 ```
 
 Hospedagem grátis (Render, túnel Cloudflare, VM Oracle), STUN/TURN para mídia na internet, passo a

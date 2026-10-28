@@ -23,8 +23,9 @@ mídia: WebRTC P2P com STUN (TURN opcional p/ NAT restritivo) — o servidor nã
 npm run build                 # cliente web + main/preload do Electron
 node deploy/build-online.mjs  # gera dist/online/server.cjs (bundle self-contained)
 PORT=8080 ROOM_NAME="Escritório online" node dist/online/server.cjs
-# abra http://localhost:8080          (home, escolhe nome)
-# ou    http://localhost:8080/join     (entrada direta, link único)
+# abra http://localhost:8080           (landing pública)
+#      http://localhost:8080/room      (app: home, escolhe o nome)
+#      http://localhost:8080/join      (entrada direta na sala, link único)
 ```
 
 Verificação automática (2 contextos de Chrome reais, devices fake, offline na máquina):
@@ -41,8 +42,17 @@ node deploy/verify-online.mjs
 | `ICE_SERVERS` | `stun:stun.l.google.com:19302` | STUN/TURN p/ mídia na internet (JSON ou lista de URLs; vazio = STUN padrão) |
 | `PUBLIC_URL` | auto (Render/Fly) | URL usada só nos logs p/ montar o link |
 
-Endpoints extras: `GET /healthz` (health check), `GET /client-config.json` (online, sala, ICE),
-`GET /join` (atalho de entrada).
+Endpoints: `GET /` (landing), `GET /room` (app), `GET /join` (entrada direta, 302 →
+`/room?autojoin=1`), `GET /healthz` (health check), `GET /client-config.json` (online, sala, ICE) e
+`GET /site/*` (assets estáticos da landing).
+
+## Landing pública (`website/`)
+
+A página de apresentação fica em [`../website/`](../website/): `index.html`, `styles.css`,
+`favicon.svg` e `office.jpg` (captura real da sala web). É HTML/CSS sem build, sem dependências e
+sem JavaScript — o servidor a serve em `/` e os assets em `/site/*`. Para editar textos/estilo,
+mexa nesses arquivos e recarregue; o Dockerfile copia a pasta `website/` para a imagem.
+Se a pasta não existir no deploy, `/` volta a servir o app (comportamento anterior).
 
 ## Mídia na internet (STUN/TURN)
 
@@ -127,12 +137,15 @@ não para produção.
 ## Verificação feita (2026-10-28)
 
 - `npm run build && node deploy/build-online.mjs` ok.
-- `node deploy/verify-online.mjs` → **11/11** (link `/join`, `client-config.json`, 2 navegadores,
+- `node deploy/verify-online.mjs` → **18/18** (link `/join`, `client-config.json`, 2 navegadores,
   nomes únicos, canvas, chat, WebRTC por proximidade, nenhum request externo, metas OG/favicon,
-  home web clara e perfil persistido entre reloads).
+  landing em `/` com assets `/site/*`, home web clara, perfil persistido entre reloads,
+  acessibilidade da landing (h1 único, skip link, alt, zoom), contraste medido ≥ 4.5:1, foco visível,
+  sem rolagem horizontal em 320px e `prefers-reduced-motion` respeitado).
 - **Túnel público** `https://…trycloudflare.com/join`: 2 navegadores em contextos separados
   entraram, 2 pessoas, chat e **mídia WebRTC peers=1** pela internet
-  ([screenshot](online/online-public.png)).
+  ([screenshot](online/online-public.png)). Landing: [desktop](online/landing.png) e
+  [mobile](online/landing-mobile.png).
 - Regressão do modo offline: `npm test` 30/30, `npm run test:e2e` 17/17 verdes.
 - Dockerfile não foi testado localmente (Docker não está instalado nesta máquina); o Render o
   constrói no deploy.

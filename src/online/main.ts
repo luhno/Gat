@@ -7,6 +7,7 @@
 // Env: PORT, CLIENT_DIR, ROOM_NAME, ICE_SERVERS (JSON array or comma-separated URLs),
 // PUBLIC_URL (optional; auto-detected on Render/Fly).
 
+import fs from "node:fs"
 import path from "node:path"
 
 import { startRoomServer, type IceServerConfig } from "../server/server"
@@ -40,7 +41,9 @@ async function main(): Promise<void> {
   const port = Number.parseInt(process.env.PORT ?? "8080", 10)
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error(`PORT inválida: ${process.env.PORT}`)
   const clientDir = path.resolve(process.env.CLIENT_DIR ?? path.join(process.cwd(), "dist/client"))
+  const websiteDir = path.resolve(process.env.WEBSITE_DIR ?? path.join(process.cwd(), "website"))
   const roomName = process.env.ROOM_NAME?.trim() || "Escritório online"
+  const hasWebsite = fs.existsSync(path.join(websiteDir, "index.html"))
 
   const server = await startRoomServer({
     port,
@@ -49,10 +52,12 @@ async function main(): Promise<void> {
     roomName,
     iceServers: parseIceServers(process.env.ICE_SERVERS),
     online: true,
+    websiteDir: hasWebsite ? websiteDir : null,
   })
 
   const base = publicBaseUrl(server.port)
   console.log(`[online] sala "${roomName}" em ${base}/`)
+  console.log(hasWebsite ? `[online] landing em ${base}/ · app em ${base}/room` : `[online] app em ${base}/`)
   console.log(`[online] link único de entrada: ${base}/join`)
   console.log(
     `[online] ice: ${process.env.ICE_SERVERS ? "ICE_SERVERS configurado" : "padrão stun:stun.l.google.com:19302"}`,

@@ -24,6 +24,10 @@ PORT=8080 ROOM_NAME="Escritório online" node dist/online/server.cjs
 # abra http://localhost:8080  (home)  ou  http://localhost:8080/join (entrada direta)
 ```
 
+Rotas do modo online: `/` abre a landing pública, `/room` abre o app (home com nome/avatar) e
+`/join` é a entrada direta na sala. A landing é um site estático em [`website/`](website/)
+(sem build e sem dependências) e é servida pelo próprio servidor.
+
 Deploy grátis e link público: [`docs/ONLINE_DEPLOY.md`](docs/ONLINE_DEPLOY.md).
 Verificação do modo web: `node deploy/verify-online.mjs`.
 
