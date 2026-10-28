@@ -159,6 +159,7 @@ export interface SoundboardChunk {
   name: string
   total: number
   index: number
+  gain: number
   data: string
 }
 
@@ -180,5 +181,7 @@ export const sanitizeSoundboardChunk = (value: unknown): SoundboardChunk | null 
       ? value.data
       : null
   if (!clip || !name || total === null || index === null || !data) return null
-  return { clip, name, total, index, data }
+  const gain =
+    typeof value.gain === "number" && Number.isFinite(value.gain) ? Math.min(1, Math.max(0, value.gain)) : 1
+  return { clip, name, total, index, gain, data }
 }

@@ -18,6 +18,8 @@ export type ClientMessage =
       name: string
       total: number
       index: number
+      /** Per-effect volume (0..1). */
+      gain?: number
       /** base64 of one chunk (≤ 8 KiB raw). */
       data: string
     }
@@ -44,7 +46,7 @@ export type ServerMessage =
     }
   | { t: "chat"; message: ChatMessage }
   | { t: "signal"; from: string; data: RtcSignal }
-  | { t: "soundboard"; from: string; clip: string; name: string; total: number; index: number; data: string }
+  | { t: "soundboard"; from: string; clip: string; name: string; total: number; index: number; gain?: number; data: string }
   | { t: "error"; code: string; message: string }
   | { t: "pong"; at: number; serverTime: number }
 

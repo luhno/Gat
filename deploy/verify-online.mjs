@@ -358,34 +358,61 @@ async function main() {
     await visitor.waitForSelector('[data-testid="office-canvas"]', { timeout: 30000 })
     await waitFor("visitante conectado", async () => (await stateOf(visitor))?.connection === "connected", 20000)
 
-    // Soundboard: upload de MP3 ≤10 s, rejeição de >10 s, volume e transmissão para quem está perto
+    // Soundboard: diálogo de corte para MP3 >10 s, volume do som e transmissão para quem está perto
     await ana.page.click('[data-testid="toolbar-soundboard"]')
     await ana.page.waitForSelector('[data-testid="soundboard-panel"]', { timeout: 10000 })
+    // React tracks input values; use the native setter so the range drag is observed.
+    const setRange = (locator, value) =>
+      locator.evaluate((element, next) => {
+        const input = element
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+        setter?.call(input, String(next))
+        input.dispatchEvent(new Event("input", { bubbles: true }))
+        input.dispatchEvent(new Event("change", { bubbles: true }))
+      }, value)
     const upload = ana.page.locator('[data-testid="soundboard-upload"]')
-    await upload.setInputFiles(path.join(ROOT, "tests/fixtures/sound-1s.mp3"))
-    await waitFor("efeito adicionado", async () => (await ana.page.locator('[data-testid="soundboard-play-0"]').count()) === 1, 10000)
-    const volumeSlider = await ana.page.locator('[data-testid="soundboard-volume"]').count()
-    if (volumeSlider === 1) {
-      pass("soundboard: painel com volume próprio")
+    await upload.setInputFiles(path.join(ROOT, "tests/fixtures/sound-12s.mp3"))
+    await ana.page.waitForSelector('[data-testid="soundboard-dialog"]', { timeout: 15000 })
+    const volumeSliders = await ana.page.locator('[data-testid="soundboard-volume"], [data-testid="soundboard-gain"]').count()
+    if (volumeSliders >= 2) {
+      pass("soundboard: volume do painel e volume do som")
     } else {
-      fail("soundboard: volume", `slider=${volumeSlider}`)
+      fail("soundboard: volumes", `sliders=${volumeSliders}`)
       failed = true
     }
-    await upload.setInputFiles(path.join(ROOT, "tests/fixtures/sound-12s.mp3"))
-    await sleep(1200)
-    const longRejected = (await ana.page.locator('[data-testid="soundboard-play-1"]').count()) === 0
-    if (longRejected) {
-      pass("soundboard: rejeita MP3 com mais de 10 s")
+    // seleção longa (>10 s) bloqueia o envio
+    await setRange(ana.page.locator('[data-testid="soundboard-trim-end"]'), 11)
+    await waitFor("envio bloqueado com >10 s", async () =>
+      ana.page.locator('[data-testid="soundboard-confirm"]').isDisabled(),
+    )
+    const blocked = await ana.page.locator('[data-testid="soundboard-confirm"]').isDisabled()
+    await ana.page.screenshot({ path: path.join(SHOTS, "soundboard-trim.png") })
+    log("  📷 docs/online/soundboard-trim.png")
+    if (blocked) {
+      pass("soundboard: diálogo de corte bloqueia trecho > 10 s")
     } else {
-      fail("soundboard: limite de 10 s", "arquivo de 12 s foi aceito")
+      fail("soundboard: limite no diálogo de corte", "Enviar habilitado com 11 s")
+      failed = true
+    }
+    // corta 2 s → 7 s (5 s), nomeia e envia
+    await setRange(ana.page.locator('[data-testid="soundboard-trim-start"]'), 2)
+    await setRange(ana.page.locator('[data-testid="soundboard-trim-end"]'), 7)
+    await ana.page.fill('[data-testid="soundboard-name"]', "corte-teste")
+    const canSend = await ana.page.locator('[data-testid="soundboard-confirm"]').isEnabled()
+    await ana.page.locator('[data-testid="soundboard-confirm"]').click()
+    await waitFor("som cortado salvo", async () => (await ana.page.locator('[data-testid="soundboard-play-0"]').count()) === 1, 15000)
+    if (canSend) {
+      pass("soundboard: corte de 5 s salvo no painel")
+    } else {
+      fail("soundboard: envio do corte", "Enviar desabilitado")
       failed = true
     }
     await ana.page.click('[data-testid="soundboard-play-0"]')
     try {
-      await waitFor("par próximo recebe o efeito", async () => (await stateOf(bia.page))?.soundboardLast === "sound-1s", 15000)
-      const localPlayed = (await stateOf(ana.page))?.soundboardLast === "sound-1s"
+      await waitFor("par próximo recebe o efeito cortado", async () => (await stateOf(bia.page))?.soundboardLast === "corte-teste", 15000)
+      const localPlayed = (await stateOf(ana.page))?.soundboardLast === "corte-teste"
       if (localPlayed) {
-        pass("soundboard: toca localmente e transmite para quem está perto")
+        pass("soundboard: toca localmente e transmite o trecho cortado")
       } else {
         throw new Error("o efeito não tocou localmente")
       }

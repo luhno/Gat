@@ -88,7 +88,7 @@ Objetivo: transformar o online funcional em algo que dá para mandar para qualqu
 
 | # | Entrega | O que muda (mínimo) | Aceite observável | Esforço |
 |---|---|---|---|---|
-| ✅ T1.0 | Landing pública | site estático em `website/` servido em `/` (app em `/room`), com OG, a11y e contraste verificados | `verify-online` 27/27 | 1 d |
+| ✅ T1.0 | Landing pública | site estático em `website/` servido em `/` (app em `/room`), com OG, a11y e contraste verificados | `verify-online` 28/28 | 1 d |
 | T1.1 | Deploy fixo | Render Free (Blueprint `render.yaml`), health check `/healthz`, doc "deploy em 5 min"; uptime/monitor opcional documentado | URL pública estável; `/healthz` 200; `/join` abre a sala; cold start explicado | 0,5 d (usuário cria conta) |
 | ✅ T1.2 | Link preview + favicon | meta `description`, Open Graph/Twitter no `index.html`; favicon e `theme-color` | colar o link no WhatsApp/Discord mostra DittoApp + descrição; favicon correto | 0,5 d |
 | ✅ T1.3 | Nome/avatar persistidos no navegador | `localStorage` para perfil quando não há bridge desktop; restaurar no boot; opção de limpar | recarregar e abrir nova aba mantém nome/avatar; anônimo vira `Convidado NNNN` | 1 d |
@@ -192,12 +192,12 @@ faz os outros módulos parecerem bons ou ruins na internet).
 | QoL-7 | Ajuda e atalhos | overlay “?” com atalhos, foco em painéis, Esc consistente | 0,5 d |
 | QoL-8 | Preferências web | status, preset de câmera e dispositivo escolhidos persistidos no navegador | 0,5 d |
 | QoL-9 | Estados e erros | reconexão visível (T1.8), sala cheia, sem rede, picker cancelado | 0,5 d |
-| ✅ QoL-10 | Efeitos sonoros (soundboard) | painel com até 20 MP3 de ≤10 s (validado), volume próprio, toca localmente e transmite via WS para quem está perto; biblioteca em IndexedDB | 2 d |
+| ✅ QoL-10 | Efeitos sonoros (soundboard) | painel com até 20 efeitos; **diálogo de envio** com prévia/waveform, **corte para até 10 s**, nome, emoji e volume por som; toca localmente e transmite via WS para quem está perto; biblioteca em IndexedDB | 2,5 d |
 
 ### Critérios de aceite globais para qualquer entrega deste bloco
 
 - `npm run typecheck`, `npm test`, `npm run test:e2e` (offline 17/17) e
-  `node deploy/verify-online.mjs` (27/27 + novos checks) verdes.
+  `node deploy/verify-online.mjs` (28/28 + novos checks) verdes.
 - Nenhum request externo novo na página; TURN/STUN só via `/client-config.json`.
 - Stats de mídia medidos (`getStats`), não estimados; documentar o número antes/depois nas tarefas
   de bitrate/qualidade.
@@ -236,7 +236,7 @@ Protótipo já entregue nesta rodada: **NET-1, NET-2 e NET-3** (ver commits e `v
 
 - M0 (rebrand), **T1.0 (landing pública)**, **NET-4 (retomada de sessão)**, **T1.8 (reconexão visível)**
   e **QoL-6 (link copiável)**; T1.2/T1.3/T1.4 (link preview/favicon, perfil persistido
-  no navegador, home web) **concluídos** — verificação online 27/27, unit 34/34 e regressão offline 17/17.
+  no navegador, home web) **concluídos** — verificação online 28/28, unit 34/34 e regressão offline 17/17.
 - **Pendente do usuário:** criar o serviço Render (`https://render.com/deploy?repo=https://github.com/luhno/Gat`)
   e informar a URL para eu validar o T1.1.
 - Próximas entregas web na ordem: **T1.6 PWA**, **T1.7 mobile/touch**, **T1.8 reconexão**, **T1.9 mídia/TURN**,
