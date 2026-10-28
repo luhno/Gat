@@ -1,4 +1,9 @@
-import { MAX_CHAT_LENGTH, MAX_NAME_LENGTH } from "../shared/constants"
+import {
+  MAX_CHAT_LENGTH,
+  MAX_NAME_LENGTH,
+  MAX_SOUNDBOARD_CHUNKS,
+  SOUNDBOARD_CHUNK_BYTES,
+} from "../shared/constants"
 import type { Direction, HairStyle, PlayerProfile, PlayerState, RtcSignal, UserStatus, Vec2 } from "../shared/types"
 
 // The LAN server is the trust boundary: every message is validated here before it reaches the room.
@@ -11,6 +16,9 @@ const STATUSES: readonly UserStatus[] = ["available", "busy", "focus"]
 const MAX_ID_LENGTH = 64
 const MAX_SDP_LENGTH = 12_000
 const MAX_ICE_CANDIDATE_LENGTH = 2_000
+const SOUNDBOARD_CLIP = /^[A-Za-z0-9_-]{1,64}$/
+const BASE64_DATA = /^[A-Za-z0-9+/]+={0,2}$/
+const MAX_SOUNDBOARD_CHUNK_BASE64 = Math.ceil((SOUNDBOARD_CHUNK_BYTES * 4) / 3) + 4
 const MAX_SDP_MID_LENGTH = 256
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -144,4 +152,33 @@ export const createRateLimiter = (max: number, windowMs: number, now: () => numb
       return true
     },
   }
+}
+
+export interface SoundboardChunk {
+  clip: string
+  name: string
+  total: number
+  index: number
+  data: string
+}
+
+/** Soundboard chunks are relayed to nearby peers: strict shape and size validation at the trust boundary. */
+export const sanitizeSoundboardChunk = (value: unknown): SoundboardChunk | null => {
+  if (!isRecord(value)) return null
+  const clip = typeof value.clip === "string" && SOUNDBOARD_CLIP.test(value.clip) ? value.clip : null
+  const name = cleanName(value.name)
+  const total =
+    typeof value.total === "number" && Number.isInteger(value.total) && value.total >= 1 && value.total <= MAX_SOUNDBOARD_CHUNKS
+      ? value.total
+      : null
+  const index =
+    typeof value.index === "number" && Number.isInteger(value.index) && value.index >= 0 && total !== null && value.index < total
+      ? value.index
+      : null
+  const data =
+    typeof value.data === "string" && value.data.length <= MAX_SOUNDBOARD_CHUNK_BASE64 && BASE64_DATA.test(value.data)
+      ? value.data
+      : null
+  if (!clip || !name || total === null || index === null || !data) return null
+  return { clip, name, total, index, data }
 }

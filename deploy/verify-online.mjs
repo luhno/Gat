@@ -358,6 +358,44 @@ async function main() {
     await visitor.waitForSelector('[data-testid="office-canvas"]', { timeout: 30000 })
     await waitFor("visitante conectado", async () => (await stateOf(visitor))?.connection === "connected", 20000)
 
+    // Soundboard: upload de MP3 ≤10 s, rejeição de >10 s, volume e transmissão para quem está perto
+    await ana.page.click('[data-testid="toolbar-soundboard"]')
+    await ana.page.waitForSelector('[data-testid="soundboard-panel"]', { timeout: 10000 })
+    const upload = ana.page.locator('[data-testid="soundboard-upload"]')
+    await upload.setInputFiles(path.join(ROOT, "tests/fixtures/sound-1s.mp3"))
+    await waitFor("efeito adicionado", async () => (await ana.page.locator('[data-testid="soundboard-play-0"]').count()) === 1, 10000)
+    const volumeSlider = await ana.page.locator('[data-testid="soundboard-volume"]').count()
+    if (volumeSlider === 1) {
+      pass("soundboard: painel com volume próprio")
+    } else {
+      fail("soundboard: volume", `slider=${volumeSlider}`)
+      failed = true
+    }
+    await upload.setInputFiles(path.join(ROOT, "tests/fixtures/sound-12s.mp3"))
+    await sleep(1200)
+    const longRejected = (await ana.page.locator('[data-testid="soundboard-play-1"]').count()) === 0
+    if (longRejected) {
+      pass("soundboard: rejeita MP3 com mais de 10 s")
+    } else {
+      fail("soundboard: limite de 10 s", "arquivo de 12 s foi aceito")
+      failed = true
+    }
+    await ana.page.click('[data-testid="soundboard-play-0"]')
+    try {
+      await waitFor("par próximo recebe o efeito", async () => (await stateOf(bia.page))?.soundboardLast === "sound-1s", 15000)
+      const localPlayed = (await stateOf(ana.page))?.soundboardLast === "sound-1s"
+      if (localPlayed) {
+        pass("soundboard: toca localmente e transmite para quem está perto")
+      } else {
+        throw new Error("o efeito não tocou localmente")
+      }
+    } catch (error) {
+      fail("soundboard: transmissão", error.message)
+      failed = true
+    }
+    await ana.page.click('[data-testid="toolbar-soundboard"]')
+    await ana.page.waitForSelector('[data-testid="soundboard-panel"]', { state: "detached", timeout: 10000 }).catch(() => undefined)
+
     // QoL-6 — link da sala copiável direto no escritório
     const shareLinks = await visitor.locator('[data-testid="share-room-link"]').count()
     if (shareLinks === 1) {

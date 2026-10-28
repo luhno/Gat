@@ -1,8 +1,8 @@
 import type { ReactNode } from "react"
 
-import { IconCamera, IconCameraOff, IconChat, IconGear, IconLeave, IconMic, IconMicOff, IconPeople, IconScreen } from "./icons"
+import { IconCamera, IconCameraOff, IconChat, IconGear, IconLeave, IconMic, IconMicOff, IconPeople, IconScreen, IconSound } from "./icons"
 
-export type PanelName = "chat" | "participants" | "settings"
+export type PanelName = "chat" | "participants" | "settings" | "soundboard"
 
 export function Toolbar({
   audioEnabled,
@@ -96,6 +96,15 @@ export function Toolbar({
         </>,
         "",
         activePanel === "chat",
+      )}
+      {button(
+        "toolbar-soundboard",
+        "Abrir efeitos sonoros",
+        "Efeitos sonoros (S)",
+        () => onOpenPanel("soundboard"),
+        <IconSound />,
+        "",
+        activePanel === "soundboard",
       )}
       {button(
         "toolbar-participants",

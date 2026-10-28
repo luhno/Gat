@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto"
 
-import { CHAT_RATE_MAX, CHAT_RATE_WINDOW_MS, MAX_PLAYERS, MOVE_RATE_MAX, MOVE_RATE_WINDOW_MS } from "../shared/constants"
+import {
+  CHAT_RATE_MAX,
+  CHAT_RATE_WINDOW_MS,
+  MAX_PLAYERS,
+  MOVE_RATE_MAX,
+  MOVE_RATE_WINDOW_MS,
+  SOUNDBOARD_RATE_MAX,
+  SOUNDBOARD_RATE_WINDOW_MS,
+} from "../shared/constants"
 import { DEFAULT_MAP } from "../shared/defaultMap"
 import { PROTOCOL_VERSION } from "../shared/protocol"
 import type { ClientMessage, ServerMessage } from "../shared/protocol"
@@ -11,6 +19,7 @@ import {
   sanitizeMediaPatch,
   sanitizeProfile,
   sanitizeProfilePatch,
+  sanitizeSoundboardChunk,
   validateChat,
   validateMove,
   validatePing,
@@ -55,6 +64,7 @@ interface Entry {
   client: RoomClient
   moveLimiter: RateLimiter
   chatLimiter: RateLimiter
+  soundboardLimiter: RateLimiter
   session: string
   disconnected: boolean
   expiry: ReturnType<typeof setTimeout> | null
@@ -129,6 +139,7 @@ export const createRoom = (options: RoomOptions = {}): Room => {
       client,
       moveLimiter: createRateLimiter(MOVE_RATE_MAX, MOVE_RATE_WINDOW_MS, now),
       chatLimiter: createRateLimiter(CHAT_RATE_MAX, CHAT_RATE_WINDOW_MS, now),
+      soundboardLimiter: createRateLimiter(SOUNDBOARD_RATE_MAX, SOUNDBOARD_RATE_WINDOW_MS, now),
       session: createId(),
       disconnected: false,
       expiry: null,
@@ -163,6 +174,15 @@ export const createRoom = (options: RoomOptions = {}): Room => {
       }
       case "leave": {
         removePlayer(playerId)
+        return
+      }
+      case "soundboard": {
+        const chunk = sanitizeSoundboardChunk(message)
+        if (!chunk || !entry.soundboardLimiter.take()) return
+        for (const other of players.values()) {
+          if (other === entry || other.disconnected) continue
+          other.client.send({ t: "soundboard", from: playerId, ...chunk })
+        }
         return
       }
       case "move": {

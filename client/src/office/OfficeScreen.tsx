@@ -9,16 +9,31 @@ import { TopBar } from "../components/TopBar"
 import { Toolbar, type PanelName } from "../components/Toolbar"
 import { desktop } from "../desktop"
 import { ScreenSharePanel } from "../media/ScreenSharePanel"
+import { SoundboardPanel } from "../soundboard/SoundboardPanel"
+import { initSoundboardReceiver } from "../soundboard/soundboard"
 import { useMedia } from "../media/useMedia"
 import { connection } from "../net/connection"
 import { actions, getState, useStore, type UiState } from "../state/store"
 import { OfficeCanvas } from "./OfficeCanvas"
 
 const panelFromUi = (ui: UiState): PanelName | null =>
-  ui.chatOpen ? "chat" : ui.participantsOpen ? "participants" : ui.settingsOpen ? "settings" : null
+  ui.chatOpen
+    ? "chat"
+    : ui.participantsOpen
+      ? "participants"
+      : ui.settingsOpen
+        ? "settings"
+        : ui.soundboardOpen
+          ? "soundboard"
+          : null
 
 const applyPanel = (panel: PanelName | null): void => {
-  actions.setUi({ chatOpen: panel === "chat", participantsOpen: panel === "participants", settingsOpen: panel === "settings" })
+  actions.setUi({
+    chatOpen: panel === "chat",
+    participantsOpen: panel === "participants",
+    settingsOpen: panel === "settings",
+    soundboardOpen: panel === "soundboard",
+  })
   if (panel === "chat") actions.markChatsRead()
 }
 
@@ -44,6 +59,10 @@ export function OfficeScreen() {
   const activePanel = panelFromUi(state.ui)
 
   useEffect(() => {
+    initSoundboardReceiver()
+  }, [])
+
+  useEffect(() => {
     if (state.ui.chatOpen) actions.markChatsRead()
   }, [state.ui.chatOpen, state.chats.length])
 
@@ -63,6 +82,9 @@ export function OfficeScreen() {
           break
         case "p":
           togglePanel("participants")
+          break
+        case "s":
+          togglePanel("soundboard")
           break
         case "escape":
           applyPanel(null)
@@ -144,6 +166,7 @@ export function OfficeScreen() {
         {activePanel === "settings" ? (
           <SettingsPanel media={media} profile={state.profile} onClose={() => applyPanel(null)} />
         ) : null}
+        {activePanel === "soundboard" ? <SoundboardPanel onClose={() => applyPanel(null)} /> : null}
       </div>
 
       {media.screenSharing ? (

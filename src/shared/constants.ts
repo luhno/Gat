@@ -29,3 +29,12 @@ export const MOVE_RATE_MAX = 40
 
 export const PRIVATE_HOST_PATTERN =
   /^(localhost|127\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})|10\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})|192\.168\.(\d{1,3})\.(\d{1,3})|172\.(1[6-9]|2\d|3[01])\.(\d{1,3})\.(\d{1,3}))$/
+
+/** Soundboard: tiny clips (≤10 s) broadcast to nearby players; bytes are relayed, never stored. */
+export const MAX_SOUNDBOARD_EFFECTS = 20
+export const MAX_SOUNDBOARD_MS = 10_000
+export const MAX_SOUNDBOARD_FILE_BYTES = 512 * 1024
+export const SOUNDBOARD_CHUNK_BYTES = 8 * 1024
+export const MAX_SOUNDBOARD_CHUNKS = Math.ceil(MAX_SOUNDBOARD_FILE_BYTES / SOUNDBOARD_CHUNK_BYTES)
+export const SOUNDBOARD_RATE_WINDOW_MS = 2000
+export const SOUNDBOARD_RATE_MAX = 200

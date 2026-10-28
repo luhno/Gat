@@ -11,6 +11,7 @@ export interface UiState {
   participantsOpen: boolean
   profileOpen: boolean
   settingsOpen: boolean
+  soundboardOpen: boolean
 }
 
 export interface ClientState {
@@ -52,7 +53,7 @@ const initialState = (): ClientState => ({
   desktop: null,
   settings: DEFAULT_DESKTOP_SETTINGS,
   profile: profileFromSettings(DEFAULT_DESKTOP_SETTINGS),
-  ui: { chatOpen: false, participantsOpen: false, profileOpen: false, settingsOpen: false },
+  ui: { chatOpen: false, participantsOpen: false, profileOpen: false, settingsOpen: false, soundboardOpen: false },
 })
 
 let state: ClientState = initialState()
@@ -126,6 +127,6 @@ export const actions = {
       latencyMs: null,
       connection: "idle",
       error: null,
-      ui: { chatOpen: false, participantsOpen: false, profileOpen: false, settingsOpen: false },
+      ui: { chatOpen: false, participantsOpen: false, profileOpen: false, settingsOpen: false, soundboardOpen: false },
     }),
 }

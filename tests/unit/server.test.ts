@@ -392,6 +392,29 @@ test("room: join manda welcome, playerJoined para os existentes e playerLeft ao 
   assert.equal(a.messages.length, 0)
 })
 
+test("room: relay de soundboard valida o chunk e entrega só aos outros", () => {
+  const room = createRoom({ createId: idGenerator() })
+  const a = fakeClient()
+  const b = fakeClient()
+  const idA = joinFake(room, a)
+  joinFake(room, b)
+  a.take()
+  b.take()
+
+  const chunk = { t: "soundboard" as const, clip: "clip-1", name: "aplausos", total: 1, index: 0, data: "aGVsbG8=" }
+  room.handle(idA, chunk)
+  const relayed = expectType(b.messages[0]!, "soundboard")
+  assert.equal(relayed.from, idA)
+  assert.equal(relayed.name, "aplausos")
+  assert.equal(relayed.data, "aGVsbG8=")
+  assert.equal(a.messages.length, 0, "quem enviou não recebe o próprio som de volta")
+  b.take()
+
+  room.handle(idA, { t: "soundboard", clip: "clip-1", name: "x", total: 1, index: 0, data: "@@@" })
+  room.handle(idA, { t: "soundboard", clip: "", name: "x", total: 1, index: 0, data: "aGVsbG8=" })
+  assert.equal(b.messages.length, 0, "chunks inválidos são ignorados")
+})
+
 test("room: retoma a sessão (mesmo id) dentro do grace period, sem playerLeft", () => {
   const room = createRoom({ createId: idGenerator(), graceMs: 1000 })
   const a = fakeClient()

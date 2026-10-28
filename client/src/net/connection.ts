@@ -5,8 +5,11 @@ import type { Direction, PlayerProfile, PlayerState, RtcSignal } from "@shared/t
 
 import { actions, getState } from "../state/store"
 
+type SoundboardRelay = Extract<ServerMessage, { t: "soundboard" }>
+
 interface ConnectionEvents {
   signal: { from: string; data: RtcSignal }
+  soundboard: SoundboardRelay
   connected: { selfId: string }
   closed: undefined
 }
@@ -33,6 +36,7 @@ class RoomConnection {
   private sessionToken: string | null = null
   private handlers: { [K in EventName]: Set<(payload: ConnectionEvents[K]) => void> } = {
     signal: new Set(),
+    soundboard: new Set(),
     connected: new Set(),
     closed: new Set(),
   }
@@ -40,6 +44,16 @@ class RoomConnection {
   onSignal(listener: (payload: ConnectionEvents["signal"]) => void): () => void {
     this.handlers.signal.add(listener)
     return () => this.handlers.signal.delete(listener)
+  }
+
+  onSoundboard(listener: (payload: ConnectionEvents["soundboard"]) => void): () => void {
+    this.handlers.soundboard.add(listener)
+    return () => this.handlers.soundboard.delete(listener)
+  }
+
+  /** Send one soundboard chunk to the room (the server relays it to nearby peers). */
+  sendSoundboard(chunk: Extract<ClientMessage, { t: "soundboard" }>): void {
+    this.send(chunk)
   }
 
   onConnected(listener: (payload: ConnectionEvents["connected"]) => void): () => void {
@@ -146,6 +160,9 @@ class RoomConnection {
         break
       case "signal":
         this.emit("signal", { from: message.from, data: message.data })
+        break
+      case "soundboard":
+        this.emit("soundboard", message)
         break
       case "error":
         actions.setError(message.message)

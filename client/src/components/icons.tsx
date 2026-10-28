@@ -68,6 +68,16 @@ export const IconScreen = (props: IconProps) =>
     </>,
   )
 
+export const IconSound = (props: IconProps) =>
+  svg(
+    props,
+    <>
+      <path d="M4.5 9.5h3l3.5-2.8v10.6L7.5 14.5h-3z" />
+      <path d="M15 9.6a3.6 3.6 0 0 1 0 4.8" />
+      <path d="M17.7 7.2a7.2 7.2 0 0 1 0 9.6" />
+    </>,
+  )
+
 export const IconChat = (props: IconProps) =>
   svg(props, <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H9l-5 4z" />)
 

@@ -11,6 +11,16 @@ export type ClientMessage =
   | { t: "signal"; to: string; data: RtcSignal }
   | { t: "ping"; at: number }
   | { t: "leave" }
+  | {
+      t: "soundboard"
+      /** Client-generated clip id, shared by every chunk of the same sound. */
+      clip: string
+      name: string
+      total: number
+      index: number
+      /** base64 of one chunk (≤ 8 KiB raw). */
+      data: string
+    }
 
 export type ServerMessage =
   | {
@@ -34,6 +44,7 @@ export type ServerMessage =
     }
   | { t: "chat"; message: ChatMessage }
   | { t: "signal"; from: string; data: RtcSignal }
+  | { t: "soundboard"; from: string; clip: string; name: string; total: number; index: number; data: string }
   | { t: "error"; code: string; message: string }
   | { t: "pong"; at: number; serverTime: number }
 
