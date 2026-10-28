@@ -1,6 +1,6 @@
 # DittoApp — Roadmap de QoL e Game Juice
 
-Status: **proposta para aprovação** (2026-10-28) · Complementa (não substitui) o
+Status: **aprovada e em execução** — Sprint 1 parcialmente entregue em 2026-10-28 · Complementa (não substitui) o
 [`ROADMAP.md`](ROADMAP.md). Escopo: produto **100% web**, salas de até 6 pessoas.
 
 "Juice" aqui é **game feel**: resposta imediata, peso, som, presença e personalidade — sempre a
@@ -43,18 +43,40 @@ badge de chat não lido, status/chips, painéis funcionais. Lacunas principais:
 5. **Zero assets externos**: síntese via Web Audio + CSS/canvas; sem CDN, sem arquivos pesados.
 6. **Sem dark patterns**: sem streaks, moedas, recompensa compulsiva; a diversão vem da presença.
 
-## Sprint 1 — "Resposta imediata" (3–5 dias) — P0
+## Sprint 1 — "Resposta imediata" (3–5 dias) — P0 · em andamento
+
+> **Entregue nesta rodada:** J1.1, J1.2 (painéis/notices/badge; toasts pendentes), J1.3, J1.6,
+> J1.7, J1.8. **Pendente:** J1.4 (toast/pop de entrada e saída) e J1.5 (ripple/poeira no chão).
 
 | # | Entrega | Detalhe | Aceite | Esf. |
 |---|---|---|---|---|
-| J1.1 | Tokens de movimento | durações/easings em token; press 0.96 em 150 ms (`:not(:disabled)`), hover só em `(hover:hover)`, foco visível | todo controle com press/focus consistentes; nenhum `transition: all` | 0,5 d |
-| J1.2 | Painéis e toasts | painéis entram com slide+fade 180 ms, saem 150 ms; chat badge "pula" ao receber; toast de sistema no canto | abrir/fechar chat, participantes, settings e soundboard com transição e foco correto | 1 d |
-| J1.3 | Avatar com micro-vida | respiração e piscada em idle, giro suave de direção, sombra que acompanha o passo | avatar parado não parece "congelado"; sem custo perceptível de FPS | 1 d |
+| ✅ J1.1 | Tokens de movimento | durações/easings em token; press 0.96 em 150 ms (`:not(:disabled)`), hover só em `(hover:hover)`, foco visível | todo controle com press/focus consistentes; nenhum `transition: all` | 0,5 d |
+| ✅ J1.2 | Painéis e toasts | painéis entram com slide+fade 180 ms, saem 150 ms; chat badge "pula" ao receber; toast de sistema no canto | abrir/fechar chat, participantes, settings e soundboard com transição e foco correto | 1 d |
+| ✅ J1.3 | Avatar com micro-vida | respiração e piscada em idle, giro suave de direção, sombra que acompanha o passo | avatar parado não parece "congelado"; sem custo perceptível de FPS | 1 d |
 | J1.4 | Entrada/saída com presença | pop scale+fade ao entrar/sair, toast discreto "Fulano entrou" e som opcional | entrar/sair é perceptível sem abrir participantes | 0,5 d |
 | J1.5 | Andar com peso | ripple no clique do chão, marcador de destino, poeirinha curta nos pés, parada com leve "settle" | andar e clicar no chão dão confirmação imediata | 0,5 d |
-| J1.6 | Quem está falando | anel/glow pulsando no avatar quando o áudio do peer está ativo (RMS via AnalyserNode), respeitando reduced motion | falante identificado visualmente; sem análise quando sem áudio | 1 d |
-| J1.7 | Sons de interface | biblioteca Web Audio sintetizada: mic on/off, obturador da câmera, chime de entrar/sair, pop de mensagem, tela iniciar/parar, erro suave | todos os sons têm master mute + volume; nada antes de gesto | 1,5 d |
-| J1.8 | Preferências de feel | "Sons da interface" (on/off+volume), "Som ambiente" (futuro), "Reduzir movimento" (auto + override), persistidas no navegador/desktop | desligar som/movimento funciona e sobrevive a reload | 0,5 d |
+| ✅ J1.6 | Quem está falando | anel/glow pulsando no avatar quando o áudio do peer está ativo (RMS via AnalyserNode), respeitando reduced motion | falante identificado visualmente; sem análise quando sem áudio | 1 d |
+| ✅ J1.7 | Sons de interface | biblioteca Web Audio sintetizada: mic on/off, obturador da câmera, chime de entrar/sair, pop de mensagem, tela iniciar/parar, erro suave | todos os sons têm master mute + volume; nada antes de gesto | 1,5 d |
+| ✅ J1.8 | Preferências de feel | "Sons da interface" (on/off+volume), "Som ambiente" (futuro), "Reduzir movimento" (auto + override), persistidas no navegador/desktop | desligar som/movimento funciona e sobrevive a reload | 0,5 d |
+
+### Registro da Sprint 1 (2026-10-28)
+
+Decisões de design (Game Designer UI): tokens curtos (`120/180/280 ms`, `cubic-bezier(0.2,0,0,1)`,
+press `0.96`), avatar com respiração/piscada em idle, anel verde de fala com fallback estático de cor,
+paleta de 10 sons sintetizados (entrar/sair, chat enviado/recebido, mic on/off, câmera, tela
+start/stop, erro), mixer com mute e volume; tudo com `prefers-reduced-motion` e sem asset externo.
+
+Implementação (Game Engineer / Software Engineer): `client/src/audio/uiSound.ts` (Web Audio,
+unlock por gesto, persistência), tokens de movimento + press/focus/painéis em `global.css`, sons
+ligados a toggles/chat/presença/erro em `OfficeScreen`, avatar idle/blink e anel de fala
+(`avatar.ts`/`scene.ts`/`useMedia.ts` com AnalyserNode), preferências em Configurações e
+`__gatherTest().uiSound` para verificação.
+
+Revisão de QoL/UX: preferências acessíveis com toggle/volume/select; reduced motion validado por
+teste; nada de estado apenas por cor/movimento; sons nunca bloqueiam a ação e respeitam o mute.
+
+Verificação: `npm run typecheck` ✅ · `npm test` 34/34 · `npm run test:e2e` 17/17 ·
+`node deploy/verify-online.mjs` **31/31** (inclui preferências de som/movimento e reduced motion).
 
 ## Sprint 2 — "Presença expressiva" (3–5 dias) — P0/P1
 

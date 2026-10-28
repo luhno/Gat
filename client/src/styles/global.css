@@ -1659,3 +1659,132 @@ button {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ── Motion tokens & game-feel feedback (Sprint 1) ─────────────────────────── */
+:root {
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 280ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --press-scale: 0.96;
+}
+
+.btn,
+.icon-btn,
+.tool-btn,
+.chat-send {
+  transition-property: transform, background-color, border-color, color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-out);
+}
+
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.tool-btn:focus-visible,
+.chat-send:focus-visible {
+  outline: 2px solid #c4b5fd;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn:not(:disabled):active,
+  .icon-btn:not(:disabled):active,
+  .tool-btn:not(:disabled):active,
+  .chat-send:not(:disabled):active {
+    transform: scale(var(--press-scale));
+  }
+
+  .panel {
+    animation: panel-in var(--motion-base) var(--ease-out) both;
+  }
+
+  .notice {
+    animation: notice-in var(--motion-fast) var(--ease-out) both;
+  }
+
+  .tool-badge {
+    animation: badge-pop 220ms var(--ease-out) both;
+  }
+
+  @keyframes panel-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes notice-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes badge-pop {
+    0% {
+      transform: scale(0.6);
+    }
+    60% {
+      transform: scale(1.15);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+}
+
+/* Explicit "reduce motion" preference wins over everything. */
+:root[data-reduce-motion="on"] .panel,
+:root[data-reduce-motion="on"] .notice,
+:root[data-reduce-motion="on"] .tool-badge {
+  animation: none !important;
+}
+
+:root[data-reduce-motion="on"] .btn:active,
+:root[data-reduce-motion="on"] .icon-btn:active,
+:root[data-reduce-motion="on"] .tool-btn:active,
+:root[data-reduce-motion="on"] .chat-send:active {
+  transform: none !important;
+}
+
+/* Settings: sound & motion preferences */
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 6px;
+  color: #c9ced8;
+  font-size: 13px;
+}
+
+.settings-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #8b5cf6;
+}
+
+.settings-field-row {
+  display: grid;
+  gap: 6px;
+  margin-block-start: 8px;
+  color: #9aa0ab;
+  font-size: 13px;
+}
+
+.settings-field-row select {
+  padding: 8px 10px;
+  border: 1px solid #2a2f39;
+  border-radius: 8px;
+  background: #111318;
+  color: #e8e8ea;
+  font: inherit;
+}

@@ -25,6 +25,8 @@ export interface AvatarDraw {
   /** per-player offset so avatars don't walk in lockstep */
   phase?: number
   isSelf?: boolean
+  /** Remote peer is currently speaking (drives a soft activity ring). */
+  speaking?: boolean
 }
 
 /** Screen-space offset from the feet box center to the top of the avatar (world px at tileSize 32). */
@@ -44,7 +46,11 @@ export function drawAvatar(ctx: CanvasRenderingContext2D, look: AvatarLook, view
   const u = view.tileSize / 32
   const phase = view.phase ?? 0
   const stride = view.moving ? Math.sin(view.time * 11 + phase) : 0
-  const bob = view.moving ? Math.abs(Math.cos(view.time * 11 + phase)) * 1.5 * u : 0
+  // Idle life: a slow breath when standing still; walking keeps its bounce.
+  const bob = view.moving
+    ? Math.abs(Math.cos(view.time * 11 + phase)) * 1.5 * u
+    : Math.sin(view.time * 2.1 + phase * 1.7) * 0.55 * u
+  const blink = !view.moving && Math.sin(view.time * 1.9 + phase * 2.3) > 0.98
   const side = view.dir === "left" || view.dir === "right"
   const faceSign = view.dir === "left" ? -1 : view.dir === "right" ? 1 : 0
 
@@ -68,6 +74,15 @@ export function drawAvatar(ctx: CanvasRenderingContext2D, look: AvatarLook, view
     ctx.lineWidth = 1.6 * u
     ctx.beginPath()
     ctx.ellipse(0, 4.5 * u, 13.6 * u, 5.2 * u, 0, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  if (view.speaking) {
+    // Soft green pulse: a static color cue plus motion, so reduced motion still reads.
+    const pulse = 1 + Math.sin(view.time * 5 + phase) * 0.06
+    ctx.strokeStyle = "rgba(74,222,128,0.85)"
+    ctx.lineWidth = 1.8 * u
+    ctx.beginPath()
+    ctx.ellipse(0, 4.5 * u, 15.4 * u * pulse, 6 * u * pulse, 0, 0, Math.PI * 2)
     ctx.stroke()
   }
 
@@ -159,14 +174,22 @@ export function drawAvatar(ctx: CanvasRenderingContext2D, look: AvatarLook, view
   // Face: profile when walking sideways, back of the head when walking up.
   ctx.fillStyle = "#20232b"
   if (view.dir === "down") {
-    ctx.beginPath()
-    ctx.arc(headX - 2.5 * u, headY + 0.6 * u, 1.15 * u, 0, Math.PI * 2)
-    ctx.arc(headX + 2.5 * u, headY + 0.6 * u, 1.15 * u, 0, Math.PI * 2)
-    ctx.fill()
+    if (blink) {
+      ctx.fillRect(headX - 3.6 * u, headY + 0.2 * u, 2.2 * u, 0.9 * u)
+      ctx.fillRect(headX + 1.4 * u, headY + 0.2 * u, 2.2 * u, 0.9 * u)
+    } else {
+      ctx.beginPath()
+      ctx.arc(headX - 2.5 * u, headY + 0.6 * u, 1.15 * u, 0, Math.PI * 2)
+      ctx.arc(headX + 2.5 * u, headY + 0.6 * u, 1.15 * u, 0, Math.PI * 2)
+      ctx.fill()
+    }
   } else if (side) {
     ctx.beginPath()
-    ctx.arc(headX + faceSign * 3.4 * u, headY + 0.4 * u, 1.1 * u, 0, Math.PI * 2)
-    ctx.fill()
+    if (blink) ctx.fillRect(headX + faceSign * 2.4 * u, headY + 0.2 * u, 2.2 * u, 0.9 * u)
+    else {
+      ctx.arc(headX + faceSign * 3.4 * u, headY + 0.4 * u, 1.1 * u, 0, Math.PI * 2)
+      ctx.fill()
+    }
     ctx.fillStyle = skinDark
     ctx.beginPath()
     ctx.arc(headX + faceSign * 5.4 * u, headY + 2.2 * u, 1 * u, 0, Math.PI * 2)

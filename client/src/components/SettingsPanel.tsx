@@ -3,6 +3,15 @@ import { useEffect, useState } from "react"
 import { APP_VERSION, MAX_NAME_LENGTH } from "@shared/constants"
 import type { PlayerProfile, UserStatus } from "@shared/types"
 
+import {
+  getMotionPreference,
+  getSoundEnabled,
+  getSoundVolume,
+  setMotionPreference,
+  setSoundEnabled,
+  setSoundVolume,
+  type MotionPreference,
+} from "../audio/uiSound"
 import { persistProfile } from "../desktop"
 import type { MediaApi } from "../media/useMedia"
 import { connection } from "../net/connection"
@@ -26,6 +35,9 @@ export function SettingsPanel({
   const [name, setName] = useState(profile.name)
   const [status, setStatus] = useState<UserStatus>(profile.status)
   const [saved, setSaved] = useState(false)
+  const [soundOn, setSoundOn] = useState(getSoundEnabled)
+  const [soundVolume, setSoundVolumeState] = useState(getSoundVolume)
+  const [motionPreference, setMotionPreferenceState] = useState<MotionPreference>(getMotionPreference)
 
   useEffect(() => {
     setName(profile.name)
@@ -81,6 +93,57 @@ export function SettingsPanel({
             </span>
           ) : null}
         </div>
+      </section>
+
+      <section className="settings-section" aria-labelledby="settings-feel-title">
+        <h3 id="settings-feel-title">Som e movimento</h3>
+        <label className="settings-toggle">
+          <span>Sons da interface</span>
+          <input
+            type="checkbox"
+            checked={soundOn}
+            data-testid="settings-sound-toggle"
+            onChange={(event) => {
+              setSoundEnabled(event.target.checked)
+              setSoundOn(event.target.checked)
+            }}
+          />
+        </label>
+        <label className="soundboard-volume">
+          <span>Volume dos sons</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={soundVolume}
+            disabled={!soundOn}
+            data-testid="settings-sound-volume"
+            aria-label="Volume dos sons da interface"
+            onChange={(event) => {
+              setSoundVolume(Number(event.target.value))
+              setSoundVolumeState(getSoundVolume())
+            }}
+          />
+          <output>{soundVolume}%</output>
+        </label>
+        <label className="settings-field-row">
+          <span>Reduzir movimento</span>
+          <select
+            value={motionPreference}
+            data-testid="settings-motion-select"
+            aria-label="Preferência de movimento"
+            onChange={(event) => {
+              const next = event.target.value as MotionPreference
+              setMotionPreference(next)
+              setMotionPreferenceState(next)
+            }}
+          >
+            <option value="auto">Automático (sistema)</option>
+            <option value="on">Sempre reduzir</option>
+            <option value="off">Sempre animar</option>
+          </select>
+        </label>
       </section>
 
       <section className="settings-section" aria-labelledby="settings-camera-title">

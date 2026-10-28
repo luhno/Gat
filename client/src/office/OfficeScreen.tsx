@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 
+import { playUiSound } from "../audio/uiSound"
 import { ChatPanel } from "../chat/ChatPanel"
 import { ConnectionOverlay } from "../components/ConnectionOverlay"
 import { Notice } from "../components/Notice"
@@ -55,7 +56,32 @@ export function OfficeScreen() {
   const media = useMedia({ selfId, map, players })
   const mediaRef = useRef(media)
   mediaRef.current = media
+  const toggleMic = (): void => {
+    const next = !mediaRef.current.audioEnabled
+    mediaRef.current.toggleAudio()
+    playUiSound(next ? "micOn" : "micOff")
+  }
+
+  const toggleCamera = (): void => {
+    mediaRef.current.toggleCamera()
+    playUiSound("camera")
+  }
+
+  const toggleScreenShare = (): void => {
+    if (mediaRef.current.screenSharing) {
+      mediaRef.current.stopScreenShare()
+      playUiSound("screenStop")
+      return
+    }
+    void mediaRef.current.startScreenShare().then(() => {
+      if (mediaRef.current.screenSharing) playUiSound("screenStart")
+    })
+  }
+
   const [dismissedSharer, setDismissedSharer] = useState<string | null>(null)
+  const chatCountRef = useRef(state.chats.length)
+  const playerCountRef = useRef(Object.keys(state.players).length)
+  const errorRef = useRef(state.error)
 
   const activePanel = panelFromUi(state.ui)
 
@@ -73,10 +99,10 @@ export function OfficeScreen() {
       if (isTypingTarget(event.target)) return
       switch (event.key.toLowerCase()) {
         case "m":
-          mediaRef.current.toggleAudio()
+          toggleMic()
           break
         case "v":
-          mediaRef.current.toggleCamera()
+          toggleCamera()
           break
         case "c":
           togglePanel("chat")
@@ -97,6 +123,26 @@ export function OfficeScreen() {
   }, [])
 
   useEffect(() => {
+    const count = Object.keys(state.players).length
+    if (count > playerCountRef.current) playUiSound("join")
+    else if (count < playerCountRef.current) playUiSound("leave")
+    playerCountRef.current = count
+  }, [state.players])
+
+  useEffect(() => {
+    const grew = state.chats.length > chatCountRef.current
+    chatCountRef.current = state.chats.length
+    if (!grew) return
+    const last = state.chats[state.chats.length - 1]
+    if (last && last.name !== state.profile.name) playUiSound("chatReceived")
+  }, [state.chats, state.profile.name])
+
+  useEffect(() => {
+    if (state.error && state.error !== errorRef.current) playUiSound("error")
+    errorRef.current = state.error
+  }, [state.error])
+
+  useEffect(() => {
     try {
       desktop?.setBadge(state.unreadChats)
     } catch {
@@ -112,11 +158,6 @@ export function OfficeScreen() {
 
   const retry = (): void => {
     void connection.connect(getState().profile).catch(() => undefined)
-  }
-
-  const toggleScreenShare = (): void => {
-    if (media.screenSharing) media.stopScreenShare()
-    else void media.startScreenShare().catch(() => undefined)
   }
 
   const sharerId = Array.from(media.remoteScreenSharing).find((id) => media.remoteStreams.has(id)) ?? null
@@ -154,7 +195,15 @@ export function OfficeScreen() {
 
       <div className="office-side">
         {activePanel === "chat" ? (
-          <ChatPanel messages={state.chats} onSend={(text) => connection.sendChat(text)} onClose={() => applyPanel(null)} />
+          <ChatPanel
+            messages={state.chats}
+            onSend={(text) => {
+              const sent = connection.sendChat(text)
+              if (sent) playUiSound("chatSent")
+              return sent
+            }}
+            onClose={() => applyPanel(null)}
+          />
         ) : null}
         {activePanel === "participants" ? (
           <ParticipantsPanel
@@ -185,8 +234,8 @@ export function OfficeScreen() {
         screenSharing={media.screenSharing}
         unreadChats={state.unreadChats}
         activePanel={activePanel}
-        onToggleAudio={() => media.toggleAudio()}
-        onToggleCamera={() => media.toggleCamera()}
+        onToggleAudio={toggleMic}
+        onToggleCamera={toggleCamera}
         onToggleScreen={toggleScreenShare}
         onOpenPanel={togglePanel}
         onLeave={leave}

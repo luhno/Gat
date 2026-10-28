@@ -76,6 +76,9 @@ export function OfficeCanvas({ streams }: { streams: Map<string, MediaStream> })
     let walkTarget: { x: number; y: number } | null = null
     let stallTime = 0
     const visuals = new Map<string, RemoteVisual>()
+    // Speaking activity comes from the media engine via a tiny dataset channel (no React re-render).
+    let speakingPeers = new Set<string>()
+    let lastSpeakingPoll = 0
 
     const resize = (): void => {
       const parent = canvas.parentElement
@@ -281,6 +284,15 @@ export function OfficeCanvas({ streams }: { streams: Map<string, MediaStream> })
       ctx.scale(zoom, zoom)
       ctx.translate(-camera.x, -camera.y)
 
+      if (now - lastSpeakingPoll > 120) {
+        lastSpeakingPoll = now
+        speakingPeers = new Set(
+          (document.body.dataset.speaking ?? "")
+            .split(",")
+            .filter(Boolean),
+        )
+      }
+
       const renderPlayers: RenderPlayer[] = []
       const self = stateNow.selfId ? stateNow.players[stateNow.selfId] : null
       if (stateNow.selfId) {
@@ -294,6 +306,7 @@ export function OfficeCanvas({ streams }: { streams: Map<string, MediaStream> })
           skinTone: self?.skinTone ?? stateNow.profile.skinTone,
           hairStyle: self?.hairStyle ?? stateNow.profile.hairStyle,
           status: self?.status ?? stateNow.profile.status,
+          speaking: Boolean(stateNow.selfId && speakingPeers.has(stateNow.selfId)),
         })
       }
       for (const [id, visual] of visuals) {
@@ -309,6 +322,7 @@ export function OfficeCanvas({ streams }: { streams: Map<string, MediaStream> })
           skinTone: player.skinTone,
           hairStyle: player.hairStyle,
           status: player.status,
+          speaking: speakingPeers.has(id),
         })
       }
       drawScene(ctx, map, renderPlayers, stateNow.selfId, now / 1000, worldView(camera.x, camera.y, cssW, cssH, zoom))

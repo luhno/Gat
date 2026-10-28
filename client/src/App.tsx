@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 
 import { MAX_NAME_LENGTH } from "@shared/constants"
 
+import { initUiSound } from "./audio/uiSound"
 import { Notice } from "./components/Notice"
 import { bootstrapDesktop, hasDesktopBridge, persistProfile } from "./desktop"
 import { HomeScreen } from "./home/HomeScreen"
@@ -17,6 +18,7 @@ export function App() {
   const autojoinDone = useRef(false)
 
   useEffect(() => {
+    initUiSound()
     let alive = true
     bootstrapDesktop()
       .catch((cause: unknown) => {

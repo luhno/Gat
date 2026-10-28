@@ -27,6 +27,12 @@ window.__gatherTest = () => {
     latencyMs: state.latencyMs,
     mediaPeers: document.body.dataset.mediaPeers ?? "0",
     mediaRemote: document.body.dataset.mediaRemote ?? "",
+    uiSound: {
+      enabled: document.body.dataset.uiSoundEnabled === "1",
+      volume: Number(document.body.dataset.uiSoundVolume ?? "0"),
+      motion: document.body.dataset.reduceMotionPreference ?? "auto",
+      lastSound: document.body.dataset.uiSoundLast ?? "",
+    },
     mediaHealth: (() => {
       try {
         return document.body.dataset.mediaHealth ? JSON.parse(document.body.dataset.mediaHealth) : null
@@ -34,6 +40,7 @@ window.__gatherTest = () => {
         return null
       }
     })(),
+    speaking: document.body.dataset.speaking ?? "",
     soundboardLast: document.body.dataset.soundboardLast ?? "",
     soundboardCount: document.body.dataset.soundboardCount ?? "0",
     mediaStats: (() => {

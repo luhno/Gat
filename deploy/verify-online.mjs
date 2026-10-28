@@ -470,6 +470,23 @@ async function main() {
       fail("prévia local da câmera", error.message)
       failed = true
     }
+    // Preferências de som/movimento (Sprint de game feel)
+    try {
+      const soundToggle = visitor.locator('[data-testid="settings-sound-toggle"]')
+      const motionSelect = visitor.locator('[data-testid="settings-motion-select"]')
+      if ((await soundToggle.count()) === 1 && (await motionSelect.count()) === 1) {
+        await soundToggle.uncheck()
+        const off = await visitor.evaluate(() => window.__gatherTest?.().uiSound?.enabled)
+        await soundToggle.check()
+        if (off !== false) throw new Error("toggle de som não refletiu no estado")
+        pass("preferências de som e movimento em Configurações")
+      } else {
+        throw new Error("controles de som/movimento ausentes")
+      }
+    } catch (error) {
+      fail("preferências de som e movimento", error.message)
+      failed = true
+    }
     await visitor.click('[data-testid="toolbar-settings"]')
     await visitor.waitForSelector('[data-testid="settings-panel"]', { state: "detached", timeout: 10000 })
 
@@ -610,6 +627,28 @@ async function main() {
     }
     await reducedContext.close()
     await landingContext.close()
+
+    // Reduced motion: painéis não animam quando o sistema pede menos movimento
+    try {
+      const rmContext = await browser.newContext({ reducedMotion: "reduce" })
+      const rmPage = await rmContext.newPage()
+      await rmPage.goto(`${origin}/room`, { waitUntil: "domcontentloaded", timeout: 30000 })
+      await rmPage.fill('[data-testid="home-name"]', "Sem movimento")
+      await rmPage.click('[data-testid="home-open-office"]')
+      await rmPage.waitForSelector('[data-testid="office-canvas"]', { timeout: 30000 })
+      await rmPage.click('[data-testid="toolbar-chat"]')
+      await rmPage.waitForSelector('[data-testid="chat-panel"]', { timeout: 10000 })
+      const animation = await rmPage.evaluate(() => getComputedStyle(document.querySelector('[data-testid="chat-panel"]')).animationName)
+      await rmContext.close()
+      if (animation === "none") pass("reduced motion desliga animação de painel")
+      else {
+        fail("reduced motion", `animationName=${animation}`)
+        failed = true
+      }
+    } catch (error) {
+      fail("reduced motion", error.message)
+      failed = true
+    }
 
     await bia.page.screenshot({ path: path.join(SHOTS, "online-room.png") })
     log("  📷 docs/online/online-room.png")

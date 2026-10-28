@@ -77,6 +77,8 @@ interface PeerSession {
   ignoreOffer: boolean
   /** Two-stage recovery after a network blip; cleared once the transport is healthy. */
   recoveryTimer: ReturnType<typeof setTimeout> | null
+  /** Optional analyser used only to show who is speaking (never recorded). */
+  analyser: AnalyserNode | null
 }
 
 interface PeerStatsEntry {
@@ -186,6 +188,9 @@ export function useMedia(options: {
     let framesSentLast = 0
     let lastFramesIncreaseAt = 0
     let lastHealthKey = ""
+    let analysisContext: AudioContext | null = null
+    let speakingTimer: ReturnType<typeof setInterval> | null = null
+    let lastSpeakingKey = ""
     // Negotiation waits for the device acquisition attempt: Chrome only associates
     // transceivers created by addTrack (not addTransceiver) when applying a remote offer.
     let mediaReady = false
@@ -253,6 +258,8 @@ export function useMedia(options: {
       if (!session) return
       if (session.recoveryTimer) clearTimeout(session.recoveryTimer)
       session.recoveryTimer = null
+      session.analyser?.disconnect()
+      session.analyser = null
       peers.delete(peerId)
       session.pc.onnegotiationneeded = null
       session.pc.onicecandidate = null
@@ -294,6 +301,7 @@ export function useMedia(options: {
         makingOffer: false,
         ignoreOffer: false,
         recoveryTimer: null,
+        analyser: null,
       }
 
       audioEl.autoplay = true
@@ -303,6 +311,16 @@ export function useMedia(options: {
       setSinkId(audioEl, selectedRef.current.audioOutputId)
       document.body.appendChild(audioEl)
       void audioEl.play().catch(() => undefined)
+      try {
+        analysisContext ??= new AudioContext()
+        const analyser = analysisContext.createAnalyser()
+        analyser.fftSize = 512
+        analysisContext.createMediaStreamSource(stream).connect(analyser)
+        session.analyser = analyser
+        if (analysisContext.state === "suspended") void analysisContext.resume()
+      } catch {
+        // Speaking activity is a bonus cue; media keeps working without it.
+      }
 
       pc.onnegotiationneeded = async () => {
         // Contract: the lower id opens the session and the higher id only answers it.
@@ -729,6 +747,27 @@ export function useMedia(options: {
     const healthTimer = setInterval(refreshHealth, 2000)
     refreshHealth()
 
+    // Who is speaking: RMS of each remote audio stream, throttled to 150 ms. Only a local cue.
+    const speakingData = new Uint8Array(256)
+    speakingTimer = setInterval(() => {
+      const ids: string[] = []
+      for (const [peerId, session] of peers) {
+        const analyser = session.analyser
+        if (!analyser) continue
+        analyser.getByteTimeDomainData(speakingData)
+        let sum = 0
+        for (let index = 0; index < speakingData.length; index += 1) {
+          const value = (speakingData[index]! - 128) / 128
+          sum += value * value
+        }
+        if (Math.sqrt(sum / speakingData.length) > 0.035) ids.push(peerId)
+      }
+      const key = ids.sort().join(",")
+      if (key === lastSpeakingKey) return
+      lastSpeakingKey = key
+      document.body.dataset.speaking = key
+    }, 150)
+
     // Watchdog: a stale signal or a lost effect must not leave a ghost connection forever.
     const watchdog = setInterval(reconcile, 2000)
 
@@ -742,6 +781,9 @@ export function useMedia(options: {
       for (const peerId of [...peers.keys()]) closePeer(peerId)
       clearInterval(statsTimer)
       clearInterval(healthTimer)
+      if (speakingTimer) clearInterval(speakingTimer)
+      document.body.dataset.speaking = ""
+      if (analysisContext) void analysisContext.close().catch(() => undefined)
       setConnectionStats(null)
       setMediaHealth(null)
       setLocalStream(null)

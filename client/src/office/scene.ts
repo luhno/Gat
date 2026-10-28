@@ -27,6 +27,8 @@ export interface RenderPlayer {
   skinTone: string
   hairStyle: HairStyle
   status: UserStatus
+  /** Remote peer is speaking right now (canvas activity ring). */
+  speaking?: boolean
 }
 
 export const worldView = (cameraX: number, cameraY: number, screenW: number, screenH: number, zoom: number): ViewRect => {
@@ -525,6 +527,7 @@ export const drawScene = (
             y: player.y,
             dir: player.dir,
             moving: player.moving,
+            speaking: player.speaking,
             time,
             tileSize: ts,
             phase: hash01(player.x * 0.01, player.y * 0.01) * Math.PI * 2,
