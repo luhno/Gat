@@ -168,7 +168,13 @@ export function OfficeScreen() {
         onLeave={leave}
       />
 
-      <ConnectionOverlay status={state.connection} error={state.error} onRetry={retry} onLeave={leave} />
+      <ConnectionOverlay
+        status={state.connection}
+        error={state.error}
+        reconnectAttempt={state.reconnectAttempt}
+        onRetry={retry}
+        onLeave={leave}
+      />
 
       {sharerId && sharerStream && dismissedSharer !== sharerId ? (
         <ScreenSharePanel

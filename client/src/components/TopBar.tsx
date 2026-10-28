@@ -27,6 +27,7 @@ export function TopBar({
   desktop: ConnectionInfo | null
 }) {
   const lanUrl = desktop?.mode === "host" ? (desktop.lanUrls[0] ?? null) : null
+  const roomLink = typeof window === "undefined" ? "" : `${window.location.origin}/join`
 
   return (
     <header className="topbar">
@@ -55,6 +56,12 @@ export function TopBar({
             <span className="topbar-lan-label">LAN</span>
             <code>{lanUrl.replace(/^https?:\/\//, "")}</code>
             <CopyButton text={lanUrl} label="Copiar endereço LAN da sala" className="btn btn-ghost btn-xs" />
+          </span>
+        ) : roomLink ? (
+          <span className="topbar-lan" data-testid="share-room-link">
+            <span className="topbar-lan-label">Sala</span>
+            <code>{roomLink.replace(/^https?:\/\//, "")}</code>
+            <CopyButton text={roomLink} label="Copiar link da sala" className="btn btn-ghost btn-xs" />
           </span>
         ) : null}
       </div>

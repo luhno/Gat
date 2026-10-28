@@ -13,7 +13,7 @@ interface ConnectionEvents {
 
 type EventName = keyof ConnectionEvents
 
-const MAX_RECONNECT_ATTEMPTS = 10
+export const MAX_RECONNECT_ATTEMPTS = 10
 
 /**
  * WebSocket client for the LAN room server. The page is always served by the host
@@ -29,6 +29,8 @@ class RoomConnection {
   private pendingMove: { x: number; y: number; dir: Direction; moving: boolean } | null = null
   private lastSentMove = ""
   private profile: PlayerProfile | null = null
+  /** Token from welcome; sent back on reconnects so the server resumes this player. */
+  private sessionToken: string | null = null
   private handlers: { [K in EventName]: Set<(payload: ConnectionEvents[K]) => void> } = {
     signal: new Set(),
     connected: new Set(),
@@ -68,7 +70,8 @@ class RoomConnection {
       let welcomed = false
 
       socket.onopen = () => {
-        this.send({ t: "join", protocol: PROTOCOL_VERSION, profile })
+        const session = this.sessionToken
+        this.send(session ? { t: "join", protocol: PROTOCOL_VERSION, profile, session } : { t: "join", protocol: PROTOCOL_VERSION, profile })
       }
 
       socket.onmessage = (event: MessageEvent) => {
@@ -103,6 +106,8 @@ class RoomConnection {
 
   private handleWelcome(message: Extract<ServerMessage, { t: "welcome" }>): void {
     this.reconnectAttempt = 0
+    this.sessionToken = message.session
+    actions.setReconnectAttempt(0)
     this.stopTimers()
     actions.setSelfId(message.you.id)
     actions.setRoom(message.room)
@@ -163,6 +168,7 @@ class RoomConnection {
       return
     }
     this.reconnectAttempt += 1
+    actions.setReconnectAttempt(this.reconnectAttempt)
     actions.setConnection("reconnecting")
     // Jitter avoids every client in the room retrying on the same tick after a server blip.
     const delay = Math.min(10000, 500 * 2 ** this.reconnectAttempt) + Math.round(Math.random() * 250)
@@ -239,10 +245,14 @@ class RoomConnection {
   disconnect(): void {
     this.manualClose = true
     this.stopTimers()
+    // Explicit leave so the server removes the player now instead of keeping the grace slot.
+    this.send({ t: "leave" })
+    this.sessionToken = null
     this.socket?.close()
     this.socket = null
     this.profile = null
     this.reconnectAttempt = 0
+    actions.setReconnectAttempt(0)
     this.lastSentMove = ""
     actions.resetRoom()
   }

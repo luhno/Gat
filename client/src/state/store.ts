@@ -23,6 +23,7 @@ export interface ClientState {
   chats: ChatMessage[]
   unreadChats: number
   latencyMs: number | null
+  reconnectAttempt: number
   desktop: ConnectionInfo | null
   settings: DesktopSettings
   profile: PlayerProfile
@@ -47,6 +48,7 @@ const initialState = (): ClientState => ({
   chats: [],
   unreadChats: 0,
   latencyMs: null,
+  reconnectAttempt: 0,
   desktop: null,
   settings: DEFAULT_DESKTOP_SETTINGS,
   profile: profileFromSettings(DEFAULT_DESKTOP_SETTINGS),
@@ -86,6 +88,7 @@ export const actions = {
   setConnection: (connection: ConnectionStatus) => setState({ connection }),
   setError: (error: string | null) => setState({ error }),
   setLatency: (latencyMs: number | null) => setState({ latencyMs }),
+  setReconnectAttempt: (reconnectAttempt: number) => setState({ reconnectAttempt }),
   setSelfId: (selfId: string | null) => setState({ selfId }),
   setRoom: (room: RoomSummary | null) => setState({ room }),
   setMap: (map: OfficeMap | null) => setState({ map }),

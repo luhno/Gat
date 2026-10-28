@@ -311,7 +311,8 @@ export async function startRoomServer(options: StartRoomServerOptions): Promise<
     })
     ws.on("close", () => {
       alive.delete(ws)
-      if (playerId !== null) room.leave(playerId)
+      // Grace period: the client can resume with its session token after a network blip.
+      if (playerId !== null) room.detach(playerId)
     })
   })
 
@@ -336,6 +337,7 @@ export async function startRoomServer(options: StartRoomServerOptions): Promise<
     if (!closing) {
       closing = (async () => {
         clearInterval(heartbeat)
+        room.close()
         for (const client of wss.clients) client.terminate()
         await new Promise<void>((resolve) => wss.close(() => resolve()))
         await new Promise<void>((resolve) => {

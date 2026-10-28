@@ -392,6 +392,60 @@ test("room: join manda welcome, playerJoined para os existentes e playerLeft ao 
   assert.equal(a.messages.length, 0)
 })
 
+test("room: retoma a sessão (mesmo id) dentro do grace period, sem playerLeft", () => {
+  const room = createRoom({ createId: idGenerator(), graceMs: 1000 })
+  const a = fakeClient()
+  const idA = joinFake(room, a)
+  const welcomeA = expectType(a.messages[0]!, "welcome")
+  assert.equal(typeof welcomeA.session, "string")
+  const b = fakeClient()
+  joinFake(room, b)
+  a.take()
+  b.take()
+
+  room.detach(idA)
+  assert.equal(room.size(), 2, "jogador desconectado ainda ocupa o slot durante o grace")
+  assert.equal(b.messages.length, 0, "ninguém recebe playerLeft imediatamente")
+
+  const resumed = fakeClient()
+  const result = room.join(resumed.client, { protocol: PROTOCOL_VERSION, profile: PROFILE, session: welcomeA.session })
+  assert.equal(result.ok, true)
+  assert.equal(result.ok ? result.id : "", idA)
+  const resumedWelcome = expectType(resumed.messages[0]!, "welcome")
+  assert.equal(resumedWelcome.you.id, idA)
+  assert.equal(room.size(), 2)
+  assert.equal(b.messages.length, 0, "não duplica playerJoined/playerLeft na retomada")
+})
+
+test("room: sessão expira após o grace period e vira playerLeft", async () => {
+  const room = createRoom({ createId: idGenerator(), graceMs: 15 })
+  const a = fakeClient()
+  const idA = joinFake(room, a)
+  const b = fakeClient()
+  joinFake(room, b)
+  a.take()
+  b.take()
+
+  room.detach(idA)
+  await new Promise((resolve) => setTimeout(resolve, 35))
+  assert.equal(room.size(), 1)
+  assert.equal(expectType(b.messages[0]!, "playerLeft").id, idA)
+})
+
+test("room: leave explícito remove na hora, sem esperar o grace", () => {
+  const room = createRoom({ createId: idGenerator(), graceMs: 1000 })
+  const a = fakeClient()
+  const idA = joinFake(room, a)
+  const b = fakeClient()
+  joinFake(room, b)
+  a.take()
+  b.take()
+
+  room.handle(idA, { t: "leave" })
+  assert.equal(room.size(), 1)
+  assert.equal(expectType(b.messages[0]!, "playerLeft").id, idA)
+})
+
 test("room: rejeita protocolo errado, perfil inválido e sala cheia", () => {
   const room = createRoom({ createId: idGenerator() })
   const a = fakeClient()
@@ -686,6 +740,8 @@ test("WSS: dois clientes fazem join/welcome/move/chat/signal/leave", async () =>
 
   const leftAPromise = nextMessage(a)
   const closedB = nextClose(b)
+  // Explicit leave: closing the socket alone now keeps a grace slot for session resume.
+  b.send(JSON.stringify({ t: "leave" }))
   b.close()
   await closedB
   assert.equal(expectType(await leftAPromise, "playerLeft").id, welcomeB.you.id)

@@ -1,14 +1,17 @@
+import { MAX_RECONNECT_ATTEMPTS } from "../net/connection"
 import type { ConnectionStatus } from "../state/store"
 
 /** Full-screen state shown while the room connection is being re-established or has failed. */
 export function ConnectionOverlay({
   status,
   error,
+  reconnectAttempt,
   onRetry,
   onLeave,
 }: {
   status: ConnectionStatus
   error: string | null
+  reconnectAttempt: number
   onRetry: () => void
   onLeave: () => void
 }) {
@@ -22,7 +25,7 @@ export function ConnectionOverlay({
         <h2 id="connection-overlay-title">{reconnecting ? "Reconectando…" : "Sem conexão com a sala"}</h2>
         <p>
           {reconnecting
-            ? "Estamos tentando reconectar automaticamente. Seu perfil e a sala continuam aqui."
+            ? `Estamos tentando reconectar automaticamente (tentativa ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}). Seu perfil e a sala continuam aqui.`
             : (error ?? "A conexão com o servidor da sala foi perdida.")}
         </p>
         <div className="overlay-actions">

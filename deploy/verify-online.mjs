@@ -136,12 +136,12 @@ async function main() {
       failed = true
     }
 
-    // Capacidade da sala: MAX_PLAYERS = 6 (o 7º recebe room_full)
-    const capacityClients = []
-    const openGuest = (name) =>
+    // Helpers de convidado via WebSocket puro (capacidade e retomada de sessão)
+    const guestSockets = []
+    const openGuest = (name, session) =>
       new Promise((resolve, reject) => {
         const socket = new WS.WebSocket(`${origin.replace(/^http/, "ws")}/ws`)
-        capacityClients.push(socket)
+        guestSockets.push(socket)
         socket.on("error", reject)
         socket.on("open", () => {
           socket.send(
@@ -149,32 +149,63 @@ async function main() {
               t: "join",
               protocol: 1,
               profile: { name, shirtColor: "#e4572e", skinTone: "#f2c9a0", hairStyle: 0, status: "available" },
+              ...(session ? { session } : {}),
             }),
           )
         })
         socket.on("message", (raw) => {
           const message = JSON.parse(String(raw))
-          if (message.t === "welcome" || message.t === "error") resolve(message)
+          if (message.t === "welcome" || message.t === "error") resolve({ message, socket })
         })
       })
+
+    // Capacidade da sala: MAX_PLAYERS = 6 (o 7º recebe room_full)
     try {
       for (let index = 1; index <= 6; index += 1) {
-        const message = await openGuest(`Capacidade ${index}`)
+        const { message } = await openGuest(`Capacidade ${index}`)
         if (message.t !== "welcome") throw new Error(`join ${index} falhou: ${JSON.stringify(message)}`)
       }
       const seventh = await openGuest("Capacidade 7")
-      if (seventh.t === "error" && seventh.code === "room_full") {
+      if (seventh.message.t === "error" && seventh.message.code === "room_full") {
         pass("capacidade da sala", "6 jogadores entram, o 7º recebe room_full")
       } else {
-        fail("capacidade da sala", JSON.stringify(seventh))
+        fail("capacidade da sala", JSON.stringify(seventh.message))
         failed = true
       }
     } catch (error) {
       fail("capacidade da sala", error.message)
       failed = true
     } finally {
-      for (const socket of capacityClients) socket.close()
+      for (const socket of guestSockets) {
+        try {
+          socket.send(JSON.stringify({ t: "leave" }))
+        } catch {
+          // Already closed (e.g. the rejected 7th connection).
+        }
+        socket.close()
+      }
       await sleep(500)
+    }
+
+    // NET-4 — retomada de sessão: reconectar com o token mantém o mesmo jogador dentro do grace
+    try {
+      const firstGuest = await openGuest("Retomada")
+      const firstSession = firstGuest.message.t === "welcome" ? firstGuest.message.session : null
+      if (firstGuest.message.t !== "welcome" || !firstSession) throw new Error("welcome sem session")
+      firstGuest.socket.close()
+      await sleep(600)
+      const resumed = await openGuest("Retomada", firstSession)
+      if (resumed.message.t === "welcome" && resumed.message.you.id === firstGuest.message.you.id) {
+        pass("retomada de sessão por token", "mesmo jogador/id após reconectar no grace period")
+      } else {
+        throw new Error(`retomada falhou: ${JSON.stringify(resumed.message)}`)
+      }
+      resumed.socket.send(JSON.stringify({ t: "leave" }))
+      resumed.socket.close()
+      await sleep(400)
+    } catch (error) {
+      fail("retomada de sessão por token", error.message)
+      failed = true
     }
 
     browser = await chromium.launch({
@@ -326,6 +357,15 @@ async function main() {
     await visitor.click('[data-testid="home-open-office"]')
     await visitor.waitForSelector('[data-testid="office-canvas"]', { timeout: 30000 })
     await waitFor("visitante conectado", async () => (await stateOf(visitor))?.connection === "connected", 20000)
+
+    // QoL-6 — link da sala copiável direto no escritório
+    const shareLinks = await visitor.locator('[data-testid="share-room-link"]').count()
+    if (shareLinks === 1) {
+      pass("link da sala copiável no escritório", "topbar mostra /join")
+    } else {
+      fail("link da sala no escritório", `contagem=${shareLinks}`)
+      failed = true
+    }
 
     // WC-1 — prévia local da câmera no painel de configurações
     await visitor.click('[data-testid="toolbar-settings"]')

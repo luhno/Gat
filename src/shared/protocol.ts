@@ -3,18 +3,21 @@ import type { ChatMessage, Direction, HairStyle, OfficeMap, PlayerProfile, Playe
 export const PROTOCOL_VERSION = 1
 
 export type ClientMessage =
-  | { t: "join"; protocol: number; profile: PlayerProfile }
+  | { t: "join"; protocol: number; profile: PlayerProfile; session?: string }
   | { t: "move"; x: number; y: number; dir: Direction; moving: boolean }
   | { t: "profile"; patch: Partial<Pick<PlayerProfile, "name" | "shirtColor" | "skinTone" | "hairStyle" | "status">> }
   | { t: "media"; patch: Partial<Pick<PlayerState, "audioEnabled" | "videoEnabled" | "screenSharing">> }
   | { t: "chat"; text: string }
   | { t: "signal"; to: string; data: RtcSignal }
   | { t: "ping"; at: number }
+  | { t: "leave" }
 
 export type ServerMessage =
   | {
       t: "welcome"
       protocol: number
+      /** Session token: send it back on `join` within the grace period to resume this player. */
+      session: string
       you: PlayerState
       players: PlayerState[]
       map: OfficeMap

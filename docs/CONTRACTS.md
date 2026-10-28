@@ -60,8 +60,11 @@ Precisou de mudança nesses arquivos? Peça ao Lead (`send_message` target `lead
 
 ### 1. Protocolo (já implementado em `src/shared/protocol.ts`)
 
-- Cliente envia `join` (com `protocol: PROTOCOL_VERSION` e `profile`) assim que o WS abre.
-- Servidor responde `welcome` (você, lista de players, mapa, room) ou `error`.
+- Cliente envia `join` (com `protocol: PROTOCOL_VERSION`, `profile` e `session?` — token da sessão
+  anterior para retomar após queda) assim que o WS abre.
+- Servidor responde `welcome` (você, lista de players, mapa, room, **`session`**) ou `error`.
+- `leave` explícito remove o jogador na hora; fechar o socket sem `leave` mantém o slot por 30 s
+  (`detach`) para retomada com o mesmo id/posição.
 - `move` chega no máximo a cada `MOVE_SEND_INTERVAL_MS`; servidor recalcula posição válida (clamp + colisão).
 - `signal` é relay ponto-a-ponto entre players da mesma sala; `to` inexistente ⇒ ignorar silenciosamente.
 - `profile`/`media` viram `playerUpdated` para todos (inclusive o autor deve ver o próprio patch).

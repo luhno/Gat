@@ -88,7 +88,7 @@ Objetivo: transformar o online funcional em algo que dá para mandar para qualqu
 
 | # | Entrega | O que muda (mínimo) | Aceite observável | Esforço |
 |---|---|---|---|---|
-| ✅ T1.0 | Landing pública | site estático em `website/` servido em `/` (app em `/room`), com OG, a11y e contraste verificados | `verify-online` 22/22 | 1 d |
+| ✅ T1.0 | Landing pública | site estático em `website/` servido em `/` (app em `/room`), com OG, a11y e contraste verificados | `verify-online` 24/24 | 1 d |
 | T1.1 | Deploy fixo | Render Free (Blueprint `render.yaml`), health check `/healthz`, doc "deploy em 5 min"; uptime/monitor opcional documentado | URL pública estável; `/healthz` 200; `/join` abre a sala; cold start explicado | 0,5 d (usuário cria conta) |
 | ✅ T1.2 | Link preview + favicon | meta `description`, Open Graph/Twitter no `index.html`; favicon e `theme-color` | colar o link no WhatsApp/Discord mostra DittoApp + descrição; favicon correto | 0,5 d |
 | ✅ T1.3 | Nome/avatar persistidos no navegador | `localStorage` para perfil quando não há bridge desktop; restaurar no boot; opção de limpar | recarregar e abrir nova aba mantém nome/avatar; anônimo vira `Convidado NNNN` | 1 d |
@@ -96,7 +96,7 @@ Objetivo: transformar o online funcional em algo que dá para mandar para qualqu
 | T1.5 | Compartilhar | botão copiar link + `navigator.share` (mobile); QR fica para a Fase 2 | copiar/share funcionam em desktop e mobile | 0,5 d |
 | T1.6 | PWA instalável | `manifest.webmanifest` + ícones + service worker cache do shell + página de fallback sem rede | "adicionar à tela inicial" no Android/iOS; reabrir offline mostra shell com aviso; WS continua funcionando quando online | 1–1,5 d |
 | T1.7 | Mobile/touch | canvas responsivo (viewport dinâmico), joystick/mobile controls, safe-area, esconder dicas de teclado, chat usável no celular | Safari iOS + Chrome Android: andar, abrir chat, mídia; sem overflow/zoom acidental | 2–3 d |
-| T1.8 | Reconexão visível | overlay "reconectando (n/5)", retry manual, volta automática sem sair da tela | desligar Wi-Fi 10 s → overlay → volta sozinho; sem recarregar página | 1 d |
+| ✅ T1.8 | Reconexão visível | overlay “Reconectando… (tentativa n/10)”, retry manual, volta automática sem sair da tela (retomada de sessão preserva o jogador) | queda → overlay com tentativa → volta sozinho sem recarregar | 1 d |
 | T1.9 | Mídia na internet | `ICE_SERVERS` documentado + indicador de qualidade/estado; teste de câmera/mic nas configurações; unlock de áudio no mobile (gesto) | mídia conecta atrás de NAT comum; sem TURN, mensagem clara; áudio toca no celular após toque | 1–2 d |
 | ✅ T1.10 | Capacidade | `MAX_PLAYERS = 6`; contador e mensagem de sala cheia | o 7º jogador recebe `room_full` amigável (verificado no `verify-online`) | 0,5 d |
 | T1.11 | CI mínimo | GitHub Actions: typecheck + unit + build + `verify-online` (Chromium headless no runner) | push/PR roda verde; badge no README | 1 d |
@@ -148,7 +148,7 @@ faz os outros módulos parecerem bons ou ruins na internet).
 | ✅ NET-1 | ICE padrão robusto | 2 STUN (Google + Cloudflare) por padrão; `ICE_SERVERS` continua sobrescrevendo | `src/online/main.ts` | `/client-config.json` com ≥ 2 URLs de STUN | 0,25 d |
 | ✅ NET-2 | Recuperação de ICE | `bundlePolicy: max-bundle`, `iceCandidatePoolSize`, `restartIce()` após blip de rede e queda limpa com recreação pelo watchdog | `client/src/media/useMedia.ts` | blip de rede < 10 s volta sem recrear a sessão; sessão que não volta é recriada | 0,5 d |
 | ✅ NET-3 | Reconexão WS resiliente | 10 tentativas com backoff + jitter, mensagem genérica de internet | `client/src/net/connection.ts` | tirar/voltar rede do navegador reconecta sozinho (check e2e online) | 0,25 d |
-| NET-4 | Retomada de sessão | `join` com token de sessão; servidor mantém o jogador por ~30 s (mesmo id/posição/tela) em vez de `playerLeft` imediato | `src/server/room.ts`, `src/shared/protocol.ts`, `src/online/main.ts`, `client/src/net/connection.ts` | queda de 10 s volta como o mesmo jogador, sem reaparecer no spawn; teste unitário do grace period | 1–2 d |
+| ✅ NET-4 | Retomada de sessão | `join` com token de sessão; servidor mantém o jogador por 30 s (`detach`/grace) em vez de `playerLeft` imediato; `welcome` devolve `session`; `leave` explícito remove na hora | `src/server/room.ts`, `src/shared/protocol.ts`, `src/server/server.ts`, `client/src/net/connection.ts` | queda curta volta como o mesmo jogador/id, sem respawn; testes unitários do grace + check WS no `verify-online` | 1–2 d |
 | ✅ NET-5 | Diagnóstico de conexão na UI | `getStats`: tipo de par ICE (host/srflx/relay), RTT, jitter, perda; seção “Conexão” em Configurações + “copiar diagnóstico” | `client/src/media/useMedia.ts`, `client/src/components/SettingsPanel.tsx` | tela mostra direto/relay e RTT; sem expor dados sensíveis | 1 d |
 | NET-6 | TURN de produção | endpoint `/turn-credentials` (coturn REST/HMAC) opcional por env + doc; fallback `ICE_SERVERS` | `src/server/server.ts`, `src/online/main.ts`, `docs/ONLINE_DEPLOY.md` | par relay aparece no diagnóstico com credencial expirada corretamente | 1 d |
 | NET-7 | Qualidade adaptativa | se relay/RTT alto: baixar resolução/FPS e bitrate via `sender.setParameters`; reduzir vídeo remoto sob perda alta | `client/src/media/useMedia.ts` | gravação de stats mostra queda de bitrate ao limitar rede | 1–2 d |
@@ -188,7 +188,7 @@ faz os outros módulos parecerem bons ou ruins na internet).
 | QoL-3 | Menções e notificações | `@nome` destacado, badge, notificação nativa do navegador (com permissão) | 1 d |
 | QoL-4 | Mobile/touch (T1.7) | joystick + ações + safe-area; chat em tela cheia | 1–2 d |
 | QoL-5 | Navegação no mapa | zoom/pan, minimapa, “onde estou”, seguir pessoa | 1–2 d |
-| QoL-6 | Compartilhar em 1 clique | botão no escritório copia `/join`; share sheet no celular | 0,25 d |
+| ✅ QoL-6 | Compartilhar em 1 clique | link `/join` copiável na topbar do escritório (web/guest); share sheet nativo fica para o mobile | 0,25 d |
 | QoL-7 | Ajuda e atalhos | overlay “?” com atalhos, foco em painéis, Esc consistente | 0,5 d |
 | QoL-8 | Preferências web | status, preset de câmera e dispositivo escolhidos persistidos no navegador | 0,5 d |
 | QoL-9 | Estados e erros | reconexão visível (T1.8), sala cheia, sem rede, picker cancelado | 0,5 d |
@@ -196,7 +196,7 @@ faz os outros módulos parecerem bons ou ruins na internet).
 ### Critérios de aceite globais para qualquer entrega deste bloco
 
 - `npm run typecheck`, `npm test`, `npm run test:e2e` (offline 17/17) e
-  `node deploy/verify-online.mjs` (22/22 + novos checks) verdes.
+  `node deploy/verify-online.mjs` (24/24 + novos checks) verdes.
 - Nenhum request externo novo na página; TURN/STUN só via `/client-config.json`.
 - Stats de mídia medidos (`getStats`), não estimados; documentar o número antes/depois nas tarefas
   de bitrate/qualidade.
@@ -233,8 +233,9 @@ Protótipo já entregue nesta rodada: **NET-1, NET-2 e NET-3** (ver commits e `v
 
 ## Progresso e próximo passo
 
-- M0 (rebrand), **T1.0 (landing pública)** e T1.2/T1.3/T1.4 (link preview/favicon, perfil persistido
-  no navegador, home web) **concluídos** — verificação online 22/22 e regressão offline 17/17.
+- M0 (rebrand), **T1.0 (landing pública)**, **NET-4 (retomada de sessão)**, **T1.8 (reconexão visível)**
+  e **QoL-6 (link copiável)**; T1.2/T1.3/T1.4 (link preview/favicon, perfil persistido
+  no navegador, home web) **concluídos** — verificação online 24/24, unit 33/33 e regressão offline 17/17.
 - **Pendente do usuário:** criar o serviço Render (`https://render.com/deploy?repo=https://github.com/luhno/Gat`)
   e informar a URL para eu validar o T1.1.
 - Próximas entregas web na ordem: **T1.6 PWA**, **T1.7 mobile/touch**, **T1.8 reconexão**, **T1.9 mídia/TURN**,
