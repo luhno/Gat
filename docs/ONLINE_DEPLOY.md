@@ -38,7 +38,7 @@ node deploy/verify-online.mjs
 | `PORT` | `8080` | porta HTTP interna |
 | `CLIENT_DIR` | `dist/client` | diretório do cliente compilado |
 | `ROOM_NAME` | `Escritório online` | nome da sala na topbar |
-| `ICE_SERVERS` | `stun:stun.l.google.com:19302` | STUN/TURN p/ mídia na internet (JSON ou lista de URLs) |
+| `ICE_SERVERS` | `stun:stun.l.google.com:19302` | STUN/TURN p/ mídia na internet (JSON ou lista de URLs; vazio = STUN padrão) |
 | `PUBLIC_URL` | auto (Render/Fly) | URL usada só nos logs p/ montar o link |
 
 Endpoints extras: `GET /healthz` (health check), `GET /client-config.json` (online, sala, ICE),

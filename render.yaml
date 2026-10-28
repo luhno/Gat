@@ -13,9 +13,7 @@ services:
     envVars:
       - key: ROOM_NAME
         value: Escritório online
-      # STUN/TURN: por padrão usa stun:stun.l.google.com:19302 (definido no código).
-      # Para redes restritivas, aponte um TURN (grátis: Metered Open Relay, Cloudflare
-      # Calls TURN ou coturn numa VM sempre-ligada) em JSON:
-      #   ICE_SERVERS=[{"urls":"turn:...:443","username":"...","credential":"..."}]
-      - key: ICE_SERVERS
-        sync: false
+      # STUN/TURN: sem ICE_SERVERS o app usa stun:stun.l.google.com:19302 (definido no código).
+      # Para redes restritivas, adicione ICE_SERVERS no painel do Render (Environment) com um
+      # TURN grátis (Metered Open Relay, Cloudflare Calls TURN ou coturn numa VM):
+      #   [{"urls":"turn:...:443","username":"...","credential":"..."}]

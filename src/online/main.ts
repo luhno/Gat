@@ -14,8 +14,8 @@ import { startRoomServer, type IceServerConfig } from "../server/server"
 const DEFAULT_ICE: IceServerConfig[] = [{ urls: "stun:stun.l.google.com:19302" }]
 
 const parseIceServers = (raw: string | undefined): IceServerConfig[] => {
-  if (raw === undefined) return DEFAULT_ICE
-  if (!raw.trim()) return []
+  // Sem configuração (ou vazio) usa o STUN público padrão; [] explícito desabilita.
+  if (raw === undefined || !raw.trim()) return DEFAULT_ICE
   try {
     const parsed: unknown = JSON.parse(raw)
     if (Array.isArray(parsed)) return parsed as IceServerConfig[]
