@@ -289,6 +289,26 @@ async function main() {
       failed = true
     }
 
+    // Feedback "está funcionando?": status + prévia local da câmera
+    try {
+      await waitFor(
+        "feedback de câmera ao vivo",
+        async () => {
+          const state = await stateOf(ana.page)
+          const hud = await ana.page.locator('[data-testid="media-health-camera"]').count()
+          return state?.mediaHealth?.camera?.shown === true && hud === 1 ? state.mediaHealth : null
+        },
+        20000,
+      )
+      await ana.page.waitForSelector('[data-testid="self-camera-preview"]', { timeout: 10000 })
+      await ana.page.screenshot({ path: path.join(SHOTS, "media-health.png") })
+      log("  📷 docs/online/media-health.png")
+      pass("feedback de câmera ao vivo (prévia + status)")
+    } catch (error) {
+      fail("feedback de câmera", error.message)
+      failed = true
+    }
+
     const external = []
     for (const player of [ana, bia]) {
       const requests = await player.page.evaluate(() =>

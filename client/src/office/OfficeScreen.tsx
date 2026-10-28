@@ -8,6 +8,7 @@ import { SettingsPanel } from "../components/SettingsPanel"
 import { TopBar } from "../components/TopBar"
 import { Toolbar, type PanelName } from "../components/Toolbar"
 import { desktop } from "../desktop"
+import { MediaHealthHud } from "../media/MediaHealthHud"
 import { ScreenSharePanel } from "../media/ScreenSharePanel"
 import { SoundboardPanel } from "../soundboard/SoundboardPanel"
 import { initSoundboardReceiver } from "../soundboard/soundboard"
@@ -190,6 +191,8 @@ export function OfficeScreen() {
         onOpenPanel={togglePanel}
         onLeave={leave}
       />
+
+      <MediaHealthHud media={media} />
 
       <ConnectionOverlay
         status={state.connection}

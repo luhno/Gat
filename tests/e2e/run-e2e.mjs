@@ -516,6 +516,16 @@ async function phaseMedia(ctx) {
       videoDetail = `aviso: ${error.message}`
       warn("vídeo remoto renderizado", error.message)
     }
+    // Feedback "está funcionando?": prévia local + status de câmera nas duas pontas
+    for (const [label, page] of [["host", ctx.host.page], ["guest", ctx.guest.page]]) {
+      await page.waitForSelector('[data-testid="self-camera-preview"]', { timeout: 15000 })
+      await waitFor(`feedback de câmera no ${label}`, async () => {
+        const count = await page.locator('[data-testid="media-health-camera"]').count()
+        if (count === 0) return false
+        const text = (await page.textContent('[data-testid="media-health-camera"]')) ?? ""
+        return text.includes("Câmera ao vivo")
+      }, 20000)
+    }
     await shot(ctx.host.page, "office")
     return `peers host=${hostState.mediaPeers} guest=${guestState.mediaPeers}; ${videoDetail}`
   })
@@ -589,6 +599,21 @@ async function phaseScreenShare(ctx) {
       return playerByName(await stateOf(ctx.guest.page), HOST_NAME)?.screenSharing === true
     }, 15000)
     await ctx.guest.page.waitForSelector('[data-testid="screen-share"]', { timeout: 20000 })
+    // Feedback local da tela: prévia + status "Tela ao vivo" no host
+    await ctx.host.page.waitForSelector('[data-testid="self-screen-preview"]', { timeout: 15000 })
+    await waitFor("prévia local da tela com frames", async () => {
+      return ctx.host.page.evaluate(() => {
+        const video = document.querySelector('[data-testid="self-screen-preview"]')
+        return video instanceof HTMLVideoElement && video.videoWidth > 0
+      })
+    }, 15000)
+    await waitFor("feedback de tela ao vivo no host", async () => {
+      const count = await ctx.host.page.locator('[data-testid="media-health-screen"]').count()
+      if (count === 0) return false
+      const text = (await ctx.host.page.textContent('[data-testid="media-health-screen"]')) ?? ""
+      return text.includes("Tela ao vivo")
+    }, 20000)
+
     const screenVideo = await waitFor("frames da tela compartilhada no guest", async () => {
       return ctx.guest.page.evaluate(() => {
         const video = document.querySelector('[data-testid="screen-share"] video')
@@ -605,6 +630,10 @@ async function phaseScreenShare(ctx) {
     await ctx.host.page.click('[data-testid="toolbar-screen"]')
     await waitFor("painel de share sumir no guest", async () => {
       return (await ctx.guest.page.locator('[data-testid="screen-share"]').count()) === 0
+    }, 15000)
+    await ctx.host.page.waitForSelector('[data-testid="self-screen-preview"]', { state: "detached", timeout: 15000 })
+    await waitFor("feedback de tela some ao parar", async () => {
+      return (await ctx.host.page.locator('[data-testid="media-health-screen"]').count()) === 0
     }, 15000)
     await waitFor("peers 0 depois de parar o share", async () => {
       const hostState = await stateOf(ctx.host.page)

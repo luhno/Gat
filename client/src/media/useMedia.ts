@@ -18,6 +18,12 @@ export interface MediaConnectionStats {
   packetsLost: number | null
 }
 
+export interface MediaHealth {
+  camera: { enabled: boolean; live: boolean; shown: boolean; pausedByScreenShare: boolean; viewers: number }
+  screen: { sharing: boolean; live: boolean; framesFlowing: boolean; viewers: number }
+  peers: number
+}
+
 export interface MediaApi {
   audioEnabled: boolean
   videoEnabled: boolean
@@ -25,6 +31,10 @@ export interface MediaApi {
   mediaError: string | null
   /** Local camera preview (mirrored in the UI); null before the camera is acquired. */
   localStream: MediaStream | null
+  /** Local screen-share preview; null unless a screen is being shared. */
+  localScreenStream: MediaStream | null
+  /** Live-capture health, so the user can see whether camera/screen is really going out. */
+  mediaHealth: MediaHealth | null
   /** Selected-pair diagnostics per peer, refreshed every few seconds. */
   connectionStats: MediaConnectionStats | null
   remoteStreams: Map<string, MediaStream>
@@ -81,6 +91,16 @@ interface PeerStatsEntry {
   kind?: string
   jitter?: number
   packetsLost?: number
+  framesSent?: number
+}
+
+interface PeerStats {
+  candidateType: string | null
+  protocol: string | null
+  rttMs: number | null
+  jitterMs: number | null
+  packetsLost: number | null
+  videoFramesSent: number
 }
 
 interface MediaEngine {
@@ -141,7 +161,9 @@ export function useMedia(options: {
   const [mediaError, setMediaError] = useState<string | null>(null)
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(() => new Map())
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const [localScreenStream, setLocalScreenStream] = useState<MediaStream | null>(null)
   const [connectionStats, setConnectionStats] = useState<MediaConnectionStats | null>(null)
+  const [mediaHealth, setMediaHealth] = useState<MediaHealth | null>(null)
   const [devices, setDevices] = useState<MediaDevicesState>(emptyDevices)
   const [selected, setSelected] = useState<SelectedDevices>(selectedRef.current)
   const engineRef = useRef<MediaEngine | null>(null)
@@ -159,6 +181,11 @@ export function useMedia(options: {
     let localCameraTrack: MediaStreamTrack | null = null
     let localScreenTrack: MediaStreamTrack | null = null
     let localPreview: MediaStream | null = null
+    let localScreenPreview: MediaStream | null = null
+    let framesSentTotal = 0
+    let framesSentLast = 0
+    let lastFramesIncreaseAt = 0
+    let lastHealthKey = ""
     // Negotiation waits for the device acquisition attempt: Chrome only associates
     // transceivers created by addTrack (not addTransceiver) when applying a remote offer.
     let mediaReady = false
@@ -475,11 +502,14 @@ export function useMedia(options: {
     const stopScreenShare = () => {
       if (!localScreenTrack && !flagsRef.current.screenSharing) return
       stopScreenTrack()
+      localScreenPreview = null
+      setLocalScreenStream(null)
       flagsRef.current.screenSharing = false
       setScreenSharing(false)
       connection.sendMedia({ screenSharing: false })
       applyVideo()
       reconcile()
+      refreshHealth()
     }
 
     const startScreenShare = async () => {
@@ -489,12 +519,15 @@ export function useMedia(options: {
         const track = stream.getVideoTracks()[0] ?? null
         if (!track) return
         localScreenTrack = track
+        localScreenPreview = new MediaStream([track])
+        setLocalScreenStream(localScreenPreview)
         track.onended = () => stopScreenShare()
         flagsRef.current.screenSharing = true
         setScreenSharing(true)
         connection.sendMedia({ screenSharing: true })
         applyVideo()
         reconcile()
+        refreshHealth()
       } catch (error) {
         // Cancelling the picker is expected and needs no message.
         if (error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "AbortError")) return
@@ -584,7 +617,7 @@ export function useMedia(options: {
       })
     }
 
-    const readPeerStats = async (pc: RTCPeerConnection): Promise<Partial<MediaConnectionStats>> => {
+    const readPeerStats = async (pc: RTCPeerConnection): Promise<PeerStats> => {
       const report = await pc.getStats()
       const entries = new Map<string, PeerStatsEntry>()
       report.forEach((raw) => {
@@ -607,7 +640,49 @@ export function useMedia(options: {
           if (typeof entry.packetsLost === "number") packetsLost = entry.packetsLost
         }
       }
-      return { candidateType, protocol, rttMs, jitterMs, packetsLost }
+      let videoFramesSent = 0
+      for (const entry of entries.values()) {
+        if (entry.type === "outbound-rtp" && entry.kind === "video" && typeof entry.framesSent === "number") {
+          videoFramesSent += entry.framesSent
+        }
+      }
+      return { candidateType, protocol, rttMs, jitterMs, packetsLost, videoFramesSent }
+    }
+
+    const refreshHealth = (): void => {
+      if (destroyed) return
+      const cameraTrack = localCameraTrack
+      const screenTrack = localScreenTrack
+      const cameraLive = Boolean(
+        cameraTrack && cameraTrack.readyState === "live" && !cameraTrack.muted && flagsRef.current.videoEnabled,
+      )
+      const screenLive = Boolean(
+        screenTrack && screenTrack.readyState === "live" && !screenTrack.muted && flagsRef.current.screenSharing,
+      )
+      const sharing = flagsRef.current.screenSharing
+      const peersCount = peers.size
+      const next: MediaHealth = {
+        camera: {
+          enabled: flagsRef.current.videoEnabled,
+          live: cameraLive,
+          shown: cameraLive && !sharing,
+          pausedByScreenShare: cameraLive && sharing,
+          viewers: cameraLive && !sharing ? peersCount : 0,
+        },
+        screen: {
+          sharing,
+          live: screenLive,
+          framesFlowing: screenLive && (Date.now() - lastFramesIncreaseAt < 6_000 || peersCount === 0),
+          viewers: sharing ? peersCount : 0,
+        },
+        peers: peersCount,
+      }
+      const key = JSON.stringify(next)
+      if (key !== lastHealthKey) {
+        lastHealthKey = key
+        setMediaHealth(next)
+        document.body.dataset.mediaHealth = key
+      }
     }
 
     const collectStats = async (): Promise<void> => {
@@ -615,6 +690,7 @@ export function useMedia(options: {
       if (peers.size === 0) {
         setConnectionStats(null)
         document.body.dataset.mediaStats = ""
+        refreshHealth()
         return
       }
       const merged: MediaConnectionStats = {
@@ -634,6 +710,7 @@ export function useMedia(options: {
           merged.rttMs = merged.rttMs ?? stats.rttMs ?? null
           merged.jitterMs = merged.jitterMs ?? stats.jitterMs ?? null
           merged.packetsLost = merged.packetsLost ?? stats.packetsLost ?? null
+          framesSentTotal += stats.videoFramesSent ?? 0
         } catch {
           // A closing peer can make getStats reject; the next tick retries.
         }
@@ -641,10 +718,16 @@ export function useMedia(options: {
       merged.direct = merged.candidateType === "host" || merged.candidateType === "srflx" || merged.candidateType === "prflx"
       setConnectionStats(merged)
       document.body.dataset.mediaStats = JSON.stringify(merged)
+      if (framesSentTotal > framesSentLast) lastFramesIncreaseAt = Date.now()
+      framesSentLast = framesSentTotal
+      refreshHealth()
     }
     const statsTimer = setInterval(() => {
+      framesSentTotal = 0
       void collectStats()
     }, 5000)
+    const healthTimer = setInterval(refreshHealth, 2000)
+    refreshHealth()
 
     // Watchdog: a stale signal or a lost effect must not leave a ghost connection forever.
     const watchdog = setInterval(reconcile, 2000)
@@ -658,8 +741,11 @@ export function useMedia(options: {
       offClosed()
       for (const peerId of [...peers.keys()]) closePeer(peerId)
       clearInterval(statsTimer)
+      clearInterval(healthTimer)
       setConnectionStats(null)
+      setMediaHealth(null)
       setLocalStream(null)
+      setLocalScreenStream(null)
       document.body.dataset.mediaStats = ""
       stopScreenTrack()
       localAudioTrack?.stop()
@@ -742,6 +828,8 @@ export function useMedia(options: {
       screenSharing,
       mediaError,
       localStream,
+      localScreenStream,
+      mediaHealth,
       connectionStats,
       remoteStreams,
       remoteScreenSharing,
@@ -761,6 +849,8 @@ export function useMedia(options: {
       screenSharing,
       mediaError,
       localStream,
+      localScreenStream,
+      mediaHealth,
       connectionStats,
       remoteStreams,
       remoteScreenSharing,

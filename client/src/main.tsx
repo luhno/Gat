@@ -27,6 +27,13 @@ window.__gatherTest = () => {
     latencyMs: state.latencyMs,
     mediaPeers: document.body.dataset.mediaPeers ?? "0",
     mediaRemote: document.body.dataset.mediaRemote ?? "",
+    mediaHealth: (() => {
+      try {
+        return document.body.dataset.mediaHealth ? JSON.parse(document.body.dataset.mediaHealth) : null
+      } catch {
+        return null
+      }
+    })(),
     soundboardLast: document.body.dataset.soundboardLast ?? "",
     soundboardCount: document.body.dataset.soundboardCount ?? "0",
     mediaStats: (() => {
