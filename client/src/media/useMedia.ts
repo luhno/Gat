@@ -8,11 +8,25 @@ import { getState } from "../state/store"
 import { isInitiator, nextConnected, tileDistance } from "./proximity"
 import "./media.css"
 
+export interface MediaConnectionStats {
+  peers: number
+  candidateType: string | null
+  protocol: string | null
+  direct: boolean
+  rttMs: number | null
+  jitterMs: number | null
+  packetsLost: number | null
+}
+
 export interface MediaApi {
   audioEnabled: boolean
   videoEnabled: boolean
   screenSharing: boolean
   mediaError: string | null
+  /** Local camera preview (mirrored in the UI); null before the camera is acquired. */
+  localStream: MediaStream | null
+  /** Selected-pair diagnostics per peer, refreshed every few seconds. */
+  connectionStats: MediaConnectionStats | null
   remoteStreams: Map<string, MediaStream>
   remoteScreenSharing: Set<string>
   devices: { audioInputs: MediaDeviceInfo[]; videoInputs: MediaDeviceInfo[]; audioOutputs: MediaDeviceInfo[] }
@@ -53,6 +67,20 @@ interface PeerSession {
   ignoreOffer: boolean
   /** Two-stage recovery after a network blip; cleared once the transport is healthy. */
   recoveryTimer: ReturnType<typeof setTimeout> | null
+}
+
+interface PeerStatsEntry {
+  id?: string
+  type?: string
+  state?: string
+  nominated?: boolean
+  currentRoundTripTime?: number
+  localCandidateId?: string
+  candidateType?: string
+  protocol?: string
+  kind?: string
+  jitter?: number
+  packetsLost?: number
 }
 
 interface MediaEngine {
@@ -112,6 +140,8 @@ export function useMedia(options: {
   const [screenSharing, setScreenSharing] = useState(false)
   const [mediaError, setMediaError] = useState<string | null>(null)
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(() => new Map())
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const [connectionStats, setConnectionStats] = useState<MediaConnectionStats | null>(null)
   const [devices, setDevices] = useState<MediaDevicesState>(emptyDevices)
   const [selected, setSelected] = useState<SelectedDevices>(selectedRef.current)
   const engineRef = useRef<MediaEngine | null>(null)
@@ -128,6 +158,7 @@ export function useMedia(options: {
     let localAudioTrack: MediaStreamTrack | null = null
     let localCameraTrack: MediaStreamTrack | null = null
     let localScreenTrack: MediaStreamTrack | null = null
+    let localPreview: MediaStream | null = null
     // Negotiation waits for the device acquisition attempt: Chrome only associates
     // transceivers created by addTrack (not addTransceiver) when applying a remote offer.
     let mediaReady = false
@@ -145,6 +176,14 @@ export function useMedia(options: {
       } catch {
         // No config (or offline guard): keep host candidates only.
       }
+    }
+
+    // Local preview for the settings panel; CSS mirrors it so it reads like a mirror.
+    const publishLocalStream = () => {
+      if (!localPreview) localPreview = new MediaStream()
+      for (const track of localPreview.getVideoTracks()) localPreview.removeTrack(track)
+      if (localCameraTrack) localPreview.addTrack(localCameraTrack)
+      setLocalStream(localPreview)
     }
 
     const syncDatasets = (streams: Map<string, MediaStream>) => {
@@ -481,6 +520,7 @@ export function useMedia(options: {
       if (destroyed || !track) return
       const previous = localCameraTrack
       localCameraTrack = track
+      publishLocalStream()
       applyVideo()
       previous?.stop()
       selectedRef.current.videoInputId = id
@@ -509,6 +549,7 @@ export function useMedia(options: {
       }
       localAudioTrack = audioTrack
       localCameraTrack = cameraTrack
+      publishLocalStream()
       mediaReady = true
       applyAudio()
       applyVideo()
@@ -543,6 +584,68 @@ export function useMedia(options: {
       })
     }
 
+    const readPeerStats = async (pc: RTCPeerConnection): Promise<Partial<MediaConnectionStats>> => {
+      const report = await pc.getStats()
+      const entries = new Map<string, PeerStatsEntry>()
+      report.forEach((raw) => {
+        const entry = raw as PeerStatsEntry
+        if (entry.id) entries.set(entry.id, entry)
+      })
+      let candidateType: string | null = null
+      let protocol: string | null = null
+      let rttMs: number | null = null
+      let jitterMs: number | null = null
+      let packetsLost: number | null = null
+      for (const entry of entries.values()) {
+        if (entry.type === "candidate-pair" && entry.state === "succeeded" && entry.nominated) {
+          candidateType = entries.get(entry.localCandidateId ?? "")?.candidateType ?? candidateType
+          protocol = entries.get(entry.localCandidateId ?? "")?.protocol ?? protocol
+          if (typeof entry.currentRoundTripTime === "number") rttMs = Math.round(entry.currentRoundTripTime * 1000)
+        }
+        if (entry.type === "inbound-rtp" && entry.kind === "audio") {
+          if (typeof entry.jitter === "number") jitterMs = Math.round(entry.jitter * 1000)
+          if (typeof entry.packetsLost === "number") packetsLost = entry.packetsLost
+        }
+      }
+      return { candidateType, protocol, rttMs, jitterMs, packetsLost }
+    }
+
+    const collectStats = async (): Promise<void> => {
+      if (destroyed) return
+      if (peers.size === 0) {
+        setConnectionStats(null)
+        document.body.dataset.mediaStats = ""
+        return
+      }
+      const merged: MediaConnectionStats = {
+        peers: peers.size,
+        candidateType: null,
+        protocol: null,
+        direct: false,
+        rttMs: null,
+        jitterMs: null,
+        packetsLost: null,
+      }
+      for (const session of peers.values()) {
+        try {
+          const stats = await readPeerStats(session.pc)
+          merged.candidateType = merged.candidateType ?? stats.candidateType ?? null
+          merged.protocol = merged.protocol ?? stats.protocol ?? null
+          merged.rttMs = merged.rttMs ?? stats.rttMs ?? null
+          merged.jitterMs = merged.jitterMs ?? stats.jitterMs ?? null
+          merged.packetsLost = merged.packetsLost ?? stats.packetsLost ?? null
+        } catch {
+          // A closing peer can make getStats reject; the next tick retries.
+        }
+      }
+      merged.direct = merged.candidateType === "host" || merged.candidateType === "srflx" || merged.candidateType === "prflx"
+      setConnectionStats(merged)
+      document.body.dataset.mediaStats = JSON.stringify(merged)
+    }
+    const statsTimer = setInterval(() => {
+      void collectStats()
+    }, 5000)
+
     // Watchdog: a stale signal or a lost effect must not leave a ghost connection forever.
     const watchdog = setInterval(reconcile, 2000)
 
@@ -554,6 +657,10 @@ export function useMedia(options: {
       offConnected()
       offClosed()
       for (const peerId of [...peers.keys()]) closePeer(peerId)
+      clearInterval(statsTimer)
+      setConnectionStats(null)
+      setLocalStream(null)
+      document.body.dataset.mediaStats = ""
       stopScreenTrack()
       localAudioTrack?.stop()
       localCameraTrack?.stop()
@@ -634,6 +741,8 @@ export function useMedia(options: {
       videoEnabled,
       screenSharing,
       mediaError,
+      localStream,
+      connectionStats,
       remoteStreams,
       remoteScreenSharing,
       devices,
@@ -651,6 +760,8 @@ export function useMedia(options: {
       videoEnabled,
       screenSharing,
       mediaError,
+      localStream,
+      connectionStats,
       remoteStreams,
       remoteScreenSharing,
       devices,

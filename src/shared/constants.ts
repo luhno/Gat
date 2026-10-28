@@ -5,7 +5,7 @@ export const PROTOCOL_VERSION = 1
 export const TILE_SIZE = 32
 export const MAX_NAME_LENGTH = 32
 export const MAX_CHAT_LENGTH = 500
-export const MAX_PLAYERS = 16
+export const MAX_PLAYERS = 6
 export const MAX_MESSAGE_BYTES = 16 * 1024
 export const MAX_PROFILE_COLOR_LENGTH = 9
 

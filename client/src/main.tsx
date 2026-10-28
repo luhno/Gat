@@ -27,6 +27,13 @@ window.__gatherTest = () => {
     latencyMs: state.latencyMs,
     mediaPeers: document.body.dataset.mediaPeers ?? "0",
     mediaRemote: document.body.dataset.mediaRemote ?? "",
+    mediaStats: (() => {
+      try {
+        return document.body.dataset.mediaStats ? JSON.parse(document.body.dataset.mediaStats) : null
+      } catch {
+        return null
+      }
+    })(),
   }
 }
 

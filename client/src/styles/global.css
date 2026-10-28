@@ -1348,3 +1348,48 @@ button {
     bottom: 82px;
   }
 }
+
+.settings-camera {
+  margin-block-start: 8px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #111318;
+  border: 1px solid #2a2f39;
+}
+
+.settings-camera-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.settings-hint {
+  margin: 0;
+  padding: 12px 14px;
+  color: #9aa0ab;
+  font-size: 13px;
+}
+
+.settings-stats {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.settings-stats > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.settings-stats dt {
+  color: #9aa0ab;
+}
+
+.settings-stats dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}

@@ -34,7 +34,7 @@ moderação avançada (ban/roles), app nativo mobile, analytics/telemetria. Nada
 
 | Abordagem | O que é | Esforço | Trade-off |
 |---|---|---|---|
-| **A. Link-first (1 sala por deploy)** — **recomendada** | Melhorar o online atual: deploy fixo, onboarding, PWA, mobile, reconexão, TURN, meta/OG, capacidade. Sem refactor de servidor. | 1–2 semanas | Cada deploy = 1 sala (16 pessoas). Simples e entrega valor rápido; multi-room fica para depois. |
+| **A. Link-first (1 sala por deploy)** — **recomendada** | Melhorar o online atual: deploy fixo, onboarding, PWA, mobile, reconexão, TURN, meta/OG, capacidade. Sem refactor de servidor. | 1–2 semanas | Cada deploy = 1 sala (6 pessoas). Simples e entrega valor rápido; multi-room fica para depois. |
 | B. Multi-room por código | Servidor com registro de salas, URL `/r/<código>`, criação/gestão de salas. | +2–4 semanas | Um deploy serve vários grupos, mas adia todo o polish de entrada/mobile que decide se as pessoas ficam. |
 | C. Plataforma pública | Landing, contas, gestão de salas, moderação, billing/analytics. | meses | Fora do tamanho do projeto; só depois de validar A. |
 
@@ -88,7 +88,7 @@ Objetivo: transformar o online funcional em algo que dá para mandar para qualqu
 
 | # | Entrega | O que muda (mínimo) | Aceite observável | Esforço |
 |---|---|---|---|---|
-| ✅ T1.0 | Landing pública | site estático em `website/` servido em `/` (app em `/room`), com OG, a11y e contraste verificados | `verify-online` 19/19 | 1 d |
+| ✅ T1.0 | Landing pública | site estático em `website/` servido em `/` (app em `/room`), com OG, a11y e contraste verificados | `verify-online` 22/22 | 1 d |
 | T1.1 | Deploy fixo | Render Free (Blueprint `render.yaml`), health check `/healthz`, doc "deploy em 5 min"; uptime/monitor opcional documentado | URL pública estável; `/healthz` 200; `/join` abre a sala; cold start explicado | 0,5 d (usuário cria conta) |
 | ✅ T1.2 | Link preview + favicon | meta `description`, Open Graph/Twitter no `index.html`; favicon e `theme-color` | colar o link no WhatsApp/Discord mostra DittoApp + descrição; favicon correto | 0,5 d |
 | ✅ T1.3 | Nome/avatar persistidos no navegador | `localStorage` para perfil quando não há bridge desktop; restaurar no boot; opção de limpar | recarregar e abrir nova aba mantém nome/avatar; anônimo vira `Convidado NNNN` | 1 d |
@@ -98,7 +98,7 @@ Objetivo: transformar o online funcional em algo que dá para mandar para qualqu
 | T1.7 | Mobile/touch | canvas responsivo (viewport dinâmico), joystick/mobile controls, safe-area, esconder dicas de teclado, chat usável no celular | Safari iOS + Chrome Android: andar, abrir chat, mídia; sem overflow/zoom acidental | 2–3 d |
 | T1.8 | Reconexão visível | overlay "reconectando (n/5)", retry manual, volta automática sem sair da tela | desligar Wi-Fi 10 s → overlay → volta sozinho; sem recarregar página | 1 d |
 | T1.9 | Mídia na internet | `ICE_SERVERS` documentado + indicador de qualidade/estado; teste de câmera/mic nas configurações; unlock de áudio no mobile (gesto) | mídia conecta atrás de NAT comum; sem TURN, mensagem clara; áudio toca no celular após toque | 1–2 d |
-| T1.10 | Capacidade | contador `X/16` e mensagem amigável de sala cheia | a 17ª conexão vê "sala cheia", sem stack trace | 0,5 d |
+| ✅ T1.10 | Capacidade | `MAX_PLAYERS = 6`; contador e mensagem de sala cheia | o 7º jogador recebe `room_full` amigável (verificado no `verify-online`) | 0,5 d |
 | T1.11 | CI mínimo | GitHub Actions: typecheck + unit + build + `verify-online` (Chromium headless no runner) | push/PR roda verde; badge no README | 1 d |
 | T1.12 | Domínio próprio (opcional) | Render custom domain + DNS (ex.: `app.dittoapp.dev`) | HTTPS válido; links antigos redirecionam | 0,5 d + compra do domínio (usuário) |
 
@@ -149,7 +149,7 @@ faz os outros módulos parecerem bons ou ruins na internet).
 | ✅ NET-2 | Recuperação de ICE | `bundlePolicy: max-bundle`, `iceCandidatePoolSize`, `restartIce()` após blip de rede e queda limpa com recreação pelo watchdog | `client/src/media/useMedia.ts` | blip de rede < 10 s volta sem recrear a sessão; sessão que não volta é recriada | 0,5 d |
 | ✅ NET-3 | Reconexão WS resiliente | 10 tentativas com backoff + jitter, mensagem genérica de internet | `client/src/net/connection.ts` | tirar/voltar rede do navegador reconecta sozinho (check e2e online) | 0,25 d |
 | NET-4 | Retomada de sessão | `join` com token de sessão; servidor mantém o jogador por ~30 s (mesmo id/posição/tela) em vez de `playerLeft` imediato | `src/server/room.ts`, `src/shared/protocol.ts`, `src/online/main.ts`, `client/src/net/connection.ts` | queda de 10 s volta como o mesmo jogador, sem reaparecer no spawn; teste unitário do grace period | 1–2 d |
-| NET-5 | Diagnóstico de conexão na UI | `getStats`: tipo de par ICE (host/srflx/relay), RTT, jitter, perda; seção “Conexão” em Configurações + “copiar diagnóstico” | `client/src/media/useMedia.ts`, `client/src/components/SettingsPanel.tsx` | tela mostra direto/relay e RTT; sem expor dados sensíveis | 1 d |
+| ✅ NET-5 | Diagnóstico de conexão na UI | `getStats`: tipo de par ICE (host/srflx/relay), RTT, jitter, perda; seção “Conexão” em Configurações + “copiar diagnóstico” | `client/src/media/useMedia.ts`, `client/src/components/SettingsPanel.tsx` | tela mostra direto/relay e RTT; sem expor dados sensíveis | 1 d |
 | NET-6 | TURN de produção | endpoint `/turn-credentials` (coturn REST/HMAC) opcional por env + doc; fallback `ICE_SERVERS` | `src/server/server.ts`, `src/online/main.ts`, `docs/ONLINE_DEPLOY.md` | par relay aparece no diagnóstico com credencial expirada corretamente | 1 d |
 | NET-7 | Qualidade adaptativa | se relay/RTT alto: baixar resolução/FPS e bitrate via `sender.setParameters`; reduzir vídeo remoto sob perda alta | `client/src/media/useMedia.ts` | gravação de stats mostra queda de bitrate ao limitar rede | 1–2 d |
 | NET-8 | Cold start / primeira carga | primeira conexão com timeout maior e estado “acordando a sala” no overlay; retry automático extra | `client/src/net/connection.ts`, `client/src/components/ConnectionOverlay.tsx` | abrir a sala no Render após dormir funciona sem reload manual | 0,5 d |
@@ -158,7 +158,7 @@ faz os outros módulos parecerem bons ou ruins na internet).
 
 | # | Entrega | Mudança mínima | Aceite | Esf. |
 |---|---|---|---|---|
-| WC-1 | Prévia local espelhada | tile da própria câmera no HUD (espelhado, sem áudio) | ver a própria câmera ao ligar/desligar | 0,5 d |
+| ✅ WC-1 | Prévia local espelhada | prévia da própria câmera em **Configurações** (espelhada, sem áudio); tile no HUD fica para a sequência | ligar/desligar a câmera reflete na prévia | 0,5 d |
 | WC-2 | Presets de qualidade | 360p@24 (padrão) e 720p@30; persistir no navegador/desktop | trocar preset sem recarregar; bitrate/CPU menores no 360p | 0,5 d |
 | WC-3 | Hot-plug de câmera | `devicechange`: dispositivo sumiu → aviso + fallback para o padrão; plugado → aparece na lista | despluggar webcam não quebra a sala | 0,5 d |
 | WC-4 | Câmera no celular | `facingMode` + botão front/back quando houver 2 câmeras | trocar front/back no celular | 0,5 d |
@@ -196,7 +196,7 @@ faz os outros módulos parecerem bons ou ruins na internet).
 ### Critérios de aceite globais para qualquer entrega deste bloco
 
 - `npm run typecheck`, `npm test`, `npm run test:e2e` (offline 17/17) e
-  `node deploy/verify-online.mjs` (19/19 + novos checks) verdes.
+  `node deploy/verify-online.mjs` (22/22 + novos checks) verdes.
 - Nenhum request externo novo na página; TURN/STUN só via `/client-config.json`.
 - Stats de mídia medidos (`getStats`), não estimados; documentar o número antes/depois nas tarefas
   de bitrate/qualidade.
@@ -218,7 +218,7 @@ Protótipo já entregue nesta rodada: **NET-1, NET-2 e NET-3** (ver commits e `v
 | Render free dorme (~15 min) → cold start 30–60 s ao abrir o link | aviso na home, keep-alive via monitor (trade-off de horas free) ou Oracle Always Free quando doer |
 | NAT restritivo quebra mídia | STUN padrão + doc de TURN grátis + indicador/estado claro na UI |
 | Escopo mobile inflar e atrasar o link | T1.7 com meta "funciona bem, não perfeito"; sem app nativo; validar em 2 celulares reais |
-| Sem login → link público, qualquer pessoa entra (máx. 16) | manter rate limits, contador de capacidade, sem dados sensíveis; avaliar lock/moderação na Fase 2 |
+| Sem login → link público, qualquer pessoa entra (máx. 6) | manter rate limits, contador de capacidade, sem dados sensíveis; avaliar lock/moderação na Fase 2 |
 | Rebrand quebra userData/deploy | M0 isolado, verificável e reversível; commit próprio e primeiro |
 | CI macOS/Electron caro/lento | CI mínimo (typecheck/unit/build/online headless); e2e Electron continua local/manual |
 
@@ -234,7 +234,7 @@ Protótipo já entregue nesta rodada: **NET-1, NET-2 e NET-3** (ver commits e `v
 ## Progresso e próximo passo
 
 - M0 (rebrand), **T1.0 (landing pública)** e T1.2/T1.3/T1.4 (link preview/favicon, perfil persistido
-  no navegador, home web) **concluídos** — verificação online 19/19 e regressão offline 17/17.
+  no navegador, home web) **concluídos** — verificação online 22/22 e regressão offline 17/17.
 - **Pendente do usuário:** criar o serviço Render (`https://render.com/deploy?repo=https://github.com/luhno/Gat`)
   e informar a URL para eu validar o T1.1.
 - Próximas entregas web na ordem: **T1.6 PWA**, **T1.7 mobile/touch**, **T1.8 reconexão**, **T1.9 mídia/TURN**,

@@ -83,6 +83,26 @@ export function SettingsPanel({
         </div>
       </section>
 
+      <section className="settings-section" aria-labelledby="settings-camera-title">
+        <h3 id="settings-camera-title">Sua câmera</h3>
+        <div className="settings-camera">
+          {media.videoEnabled && media.localStream ? (
+            <video
+              className="settings-camera-video"
+              data-testid="settings-camera-preview"
+              ref={(element) => {
+                if (element && element.srcObject !== media.localStream) element.srcObject = media.localStream
+              }}
+              autoPlay
+              muted
+              playsInline
+            />
+          ) : (
+            <p className="settings-hint">Câmera desligada. Use o botão de câmera na barra inferior para ligar.</p>
+          )}
+        </div>
+      </section>
+
       <section className="settings-section" aria-labelledby="settings-devices-title">
         <h3 id="settings-devices-title">Dispositivos</h3>
         <label className="field">
@@ -131,6 +151,44 @@ export function SettingsPanel({
           </select>
         </label>
         {media.mediaError ? <Notice kind="error">{media.mediaError}</Notice> : null}
+      </section>
+
+      <section className="settings-section" aria-labelledby="settings-connection-title">
+        <h3 id="settings-connection-title">Conexão</h3>
+        {media.connectionStats ? (
+          <dl className="settings-stats" data-testid="settings-connection">
+            <div>
+              <dt>Pares de mídia</dt>
+              <dd>{media.connectionStats.peers}</dd>
+            </div>
+            <div>
+              <dt>Rota</dt>
+              <dd>
+                {media.connectionStats.direct
+                  ? media.connectionStats.candidateType === "host"
+                    ? "Direta (rede local)"
+                    : "Direta (NAT)"
+                  : media.connectionStats.candidateType === "relay"
+                    ? "Relay (TURN)"
+                    : "Coletando…"}
+              </dd>
+            </div>
+            <div>
+              <dt>Latência</dt>
+              <dd>{media.connectionStats.rttMs !== null ? `${media.connectionStats.rttMs} ms` : "—"}</dd>
+            </div>
+            <div>
+              <dt>Jitter</dt>
+              <dd>{media.connectionStats.jitterMs !== null ? `${media.connectionStats.jitterMs} ms` : "—"}</dd>
+            </div>
+            <div>
+              <dt>Pacotes perdidos</dt>
+              <dd>{media.connectionStats.packetsLost !== null ? media.connectionStats.packetsLost : "—"}</dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="settings-hint">Sem mídia conectada agora. Aproxime-se de alguém para abrir uma conexão.</p>
+        )}
       </section>
 
       <section className="settings-section" aria-labelledby="settings-about-title">

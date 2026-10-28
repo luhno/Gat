@@ -6,7 +6,7 @@ HTTP atrás de um proxy TLS, servindo o cliente web, para que qualquer pessoa en
 
 ```
 navegador ──HTTPS/WSS──> proxy (Render/VM/Caddy) ──HTTP──> dist/online/server.cjs
-                                                             └── 1 sala em memória (16 pessoas)
+                                                             └── 1 sala em memória (6 pessoas)
 mídia: WebRTC P2P com STUN (TURN opcional p/ NAT restritivo) — o servidor não carrega áudio/vídeo
 ```
 
@@ -14,7 +14,7 @@ mídia: WebRTC P2P com STUN (TURN opcional p/ NAT restritivo) — o servidor nã
 - Link único: `https://<host>/join` → redireciona para `/?autojoin=1`; o visitante entra como
   `Convidado NNNN` (nome único automático) e pode renomear no painel **Configurações**.
   Também dá para compartilhar `/?autojoin=1&name=Ana` (nome na URL) ou `/` (home, escolhe o nome).
-- Estado em memória (reiniciar limpa a sala), sem login/persistência, máximo de 16 jogadores.
+- Estado em memória (reiniciar limpa a sala), sem login/persistência, máximo de 6 jogadores.
 - TLS é do proxy/plataforma; o servidor Node fala HTTP puro internamente.
 
 ## Rodar localmente
@@ -129,7 +129,7 @@ não para produção.
 
 ## Limites e segurança
 
-- Sem login: **quem tem o link entra**. Não use para conteúdo sensível; no máximo 16 pessoas.
+- Sem login: **quem tem o link entra**. Não use para conteúdo sensível; no máximo 6 pessoas.
 - Chat/presença/sinalização passam pelo servidor; áudio/vídeo são P2P (o servidor não vê a mídia).
 - Sem persistência (chat/histórico somem ao reiniciar).
 - Validação/rate limits do servidor continuam ativos; TLS e HTTPS são responsabilidade da plataforma.
@@ -138,7 +138,8 @@ não para produção.
 ## Verificação feita (2026-10-28)
 
 - `npm run build && node deploy/build-online.mjs` ok.
-- `node deploy/verify-online.mjs` → **19/19** (link `/join`, `client-config.json`, 2 navegadores,
+- `node deploy/verify-online.mjs` → **22/22** (link `/join`, `client-config.json`, capacidade de 6,
+  diagnóstico de conexão e prévia local da câmera, 2 navegadores,
   nomes únicos, canvas, chat, WebRTC por proximidade, nenhum request externo, metas OG/favicon,
   landing em `/` com assets `/site/*`, home web clara, perfil persistido entre reloads,
   acessibilidade da landing (h1 único, skip link, alt, zoom), contraste medido ≥ 4.5:1, foco visível,

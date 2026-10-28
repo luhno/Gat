@@ -345,7 +345,7 @@ export function HomeScreen() {
         ) : (
           <section className="home-card home-room" aria-labelledby="home-room-title">
             <h2 id="home-room-title">Sala</h2>
-            <p className="home-hint">Versão web: todos que abrirem este link entram na mesma sala (até 16 pessoas).</p>
+            <p className="home-hint">Versão web: todos que abrirem este link entram na mesma sala (até 6 pessoas).</p>
             <div className="lan-box" data-testid="web-room-link">
               <h3>Link de entrada</h3>
               <ul className="address-list">

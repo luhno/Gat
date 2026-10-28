@@ -19,6 +19,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const { chromium } = createRequire(import.meta.url)("playwright-core")
+const WS = createRequire(import.meta.url)("ws")
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const SERVER = path.join(ROOT, "dist/online/server.cjs")
 const SHOTS = path.join(ROOT, "docs/online")
@@ -135,6 +136,47 @@ async function main() {
       failed = true
     }
 
+    // Capacidade da sala: MAX_PLAYERS = 6 (o 7º recebe room_full)
+    const capacityClients = []
+    const openGuest = (name) =>
+      new Promise((resolve, reject) => {
+        const socket = new WS.WebSocket(`${origin.replace(/^http/, "ws")}/ws`)
+        capacityClients.push(socket)
+        socket.on("error", reject)
+        socket.on("open", () => {
+          socket.send(
+            JSON.stringify({
+              t: "join",
+              protocol: 1,
+              profile: { name, shirtColor: "#e4572e", skinTone: "#f2c9a0", hairStyle: 0, status: "available" },
+            }),
+          )
+        })
+        socket.on("message", (raw) => {
+          const message = JSON.parse(String(raw))
+          if (message.t === "welcome" || message.t === "error") resolve(message)
+        })
+      })
+    try {
+      for (let index = 1; index <= 6; index += 1) {
+        const message = await openGuest(`Capacidade ${index}`)
+        if (message.t !== "welcome") throw new Error(`join ${index} falhou: ${JSON.stringify(message)}`)
+      }
+      const seventh = await openGuest("Capacidade 7")
+      if (seventh.t === "error" && seventh.code === "room_full") {
+        pass("capacidade da sala", "6 jogadores entram, o 7º recebe room_full")
+      } else {
+        fail("capacidade da sala", JSON.stringify(seventh))
+        failed = true
+      }
+    } catch (error) {
+      fail("capacidade da sala", error.message)
+      failed = true
+    } finally {
+      for (const socket of capacityClients) socket.close()
+      await sleep(500)
+    }
+
     browser = await chromium.launch({
       channel: "chrome",
       headless: true,
@@ -196,6 +238,24 @@ async function main() {
       pass("mídia WebRTC por proximidade", "peers >= 1 nos dois navegadores")
     } catch (error) {
       warn("mídia WebRTC por proximidade", `${error.message} (depende da rede/ICE do ambiente)`)
+    }
+
+    try {
+      const stats = await waitFor(
+        "diagnóstico de conexão (getStats)",
+        async () => {
+          const state = await stateOf(ana.page)
+          return state?.mediaStats && typeof state.mediaStats.candidateType === "string" ? state.mediaStats : null
+        },
+        20000,
+      )
+      pass(
+        "diagnóstico de conexão (getStats)",
+        `rota=${stats.candidateType} · rtt=${stats.rttMs ?? "—"}ms · jitter=${stats.jitterMs ?? "—"}ms`,
+      )
+    } catch (error) {
+      fail("diagnóstico de conexão (getStats)", error.message)
+      failed = true
     }
 
     const external = []
@@ -266,6 +326,27 @@ async function main() {
     await visitor.click('[data-testid="home-open-office"]')
     await visitor.waitForSelector('[data-testid="office-canvas"]', { timeout: 30000 })
     await waitFor("visitante conectado", async () => (await stateOf(visitor))?.connection === "connected", 20000)
+
+    // WC-1 — prévia local da câmera no painel de configurações
+    await visitor.click('[data-testid="toolbar-settings"]')
+    await visitor.waitForSelector('[data-testid="settings-panel"]', { timeout: 10000 })
+    try {
+      await waitFor(
+        "prévia local da câmera",
+        async () =>
+          visitor.evaluate(() => {
+            const video = document.querySelector('[data-testid="settings-camera-preview"]')
+            return video instanceof HTMLVideoElement && video.srcObject instanceof MediaStream
+          }),
+        10000,
+      )
+      pass("prévia local da câmera em Configurações")
+    } catch (error) {
+      fail("prévia local da câmera", error.message)
+      failed = true
+    }
+    await visitor.click('[data-testid="toolbar-settings"]')
+    await visitor.waitForSelector('[data-testid="settings-panel"]', { state: "detached", timeout: 10000 })
 
     // NET-3 — o servidor cai e volta: o cliente precisa reconectar sozinho (backoff + jitter)
     await stopServer()

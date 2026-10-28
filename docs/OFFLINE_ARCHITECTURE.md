@@ -87,5 +87,5 @@ Mensagens JSON com discriminante `t` (tipos completos em `src/shared/protocol.ts
 - Sem descoberta automática de salas na LAN: o endereço é informado (host mostra os `lanUrls`).
 - Sem TURN: em redes com isolamento de clientes/AP o peer-to-peer pode falhar (mídia), mas o app e o
   chat continuam funcionando.
-- Mesh é adequado para o tamanho de um escritório pequeno (até `MAX_PLAYERS = 16`; custo cresce O(n²)).
+- Mesh é adequado para o tamanho de um escritório pequeno (até `MAX_PLAYERS = 6`; custo cresce O(n²)).
 - O app é um estudo de engenharia reversa; não é afiliado ao Gather.
