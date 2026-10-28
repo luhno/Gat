@@ -1,0 +1,38 @@
+import type { ChatMessage, Direction, HairStyle, OfficeMap, PlayerProfile, PlayerState, RoomSummary, RtcSignal, UserStatus } from "./types"
+
+export const PROTOCOL_VERSION = 1
+
+export type ClientMessage =
+  | { t: "join"; protocol: number; profile: PlayerProfile }
+  | { t: "move"; x: number; y: number; dir: Direction; moving: boolean }
+  | { t: "profile"; patch: Partial<Pick<PlayerProfile, "name" | "shirtColor" | "skinTone" | "hairStyle" | "status">> }
+  | { t: "media"; patch: Partial<Pick<PlayerState, "audioEnabled" | "videoEnabled" | "screenSharing">> }
+  | { t: "chat"; text: string }
+  | { t: "signal"; to: string; data: RtcSignal }
+  | { t: "ping"; at: number }
+
+export type ServerMessage =
+  | {
+      t: "welcome"
+      protocol: number
+      you: PlayerState
+      players: PlayerState[]
+      map: OfficeMap
+      room: RoomSummary
+      serverTime: number
+    }
+  | { t: "playerJoined"; player: PlayerState }
+  | { t: "playerLeft"; id: string }
+  | { t: "playerMoved"; id: string; x: number; y: number; dir: Direction; moving: boolean }
+  | {
+      t: "playerUpdated"
+      id: string
+      patch: Partial<Pick<PlayerState, "name" | "shirtColor" | "skinTone" | "hairStyle" | "status" | "audioEnabled" | "videoEnabled" | "screenSharing">>
+    }
+  | { t: "chat"; message: ChatMessage }
+  | { t: "signal"; from: string; data: RtcSignal }
+  | { t: "error"; code: string; message: string }
+  | { t: "pong"; at: number; serverTime: number }
+
+export type AuthMode = "available" | "busy" | "focus"
+export type { Direction, HairStyle, UserStatus }

@@ -1,0 +1,21 @@
+# Render Blueprint — opção grátis para subir o modo online (1 sala por deploy).
+# Passo a passo: docs/ONLINE_DEPLOY.md
+#
+# Render → New → Blueprint → conecte o repositório deste projeto.
+# O serviço é Docker (Dockerfile na raiz) e o Render injeta PORT + HTTPS na borda.
+services:
+  - type: web
+    name: gather-offline
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: ROOM_NAME
+        value: Escritório online
+      # STUN/TURN: por padrão usa stun:stun.l.google.com:19302 (definido no código).
+      # Para redes restritivas, aponte um TURN (grátis: Metered Open Relay, Cloudflare
+      # Calls TURN ou coturn numa VM sempre-ligada) em JSON:
+      #   ICE_SERVERS=[{"urls":"turn:...:443","username":"...","credential":"..."}]
+      - key: ICE_SERVERS
+        sync: false

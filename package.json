@@ -1,0 +1,38 @@
+{
+  "name": "gather-offline",
+  "productName": "Gather Offline",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline-first reimplementation of the Gather desktop experience, built from a reverse-engineering study of GatherV2.app 0.55.2.",
+  "author": "Reverse-engineering study",
+  "license": "UNLICENSED",
+  "main": "dist/main/main.cjs",
+  "scripts": {
+    "build:client": "vite build --config client/vite.config.ts",
+    "build:main": "node scripts/build-main.mjs",
+    "build": "npm run build:client && npm run build:main",
+    "start": "electron .",
+    "dev": "npm run build && electron .",
+    "typecheck": "tsc --noEmit",
+    "build:tests": "node scripts/build-tests.mjs",
+    "test": "npm run build:tests && node --test \"dist/tests/**/*.test.js\"",
+    "test:e2e": "node tests/e2e/run-e2e.mjs",
+    "dist": "npm run build && electron-builder --mac --dir"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
+    "electron": "44.4.3",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "playwright-core": "^1.64.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "selfsigned": "^5.5.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.7",
+    "ws": "^8.22.0"
+  }
+}

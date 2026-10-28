@@ -1,0 +1,25 @@
+appId: com.gatheroffline.app
+productName: Gather Offline
+copyright: Reverse-engineering study, not affiliated with Gather Presence Inc.
+directories:
+  output: release
+asar: true
+files:
+  - dist/main/**/*
+  - dist/client/**/*
+  - package.json
+  - "!dist/**/*.map"
+  - "!dist/tests/**/*"
+mac:
+  category: public.app-category.video
+  target:
+    - target: dir
+      arch:
+        - arm64
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  extendInfo:
+    NSMicrophoneUsageDescription: O microfone é usado para conversas por voz na sala local.
+    NSCameraUsageDescription: A câmera é usada para vídeo na sala local.
+    NSAudioCaptureUsageDescription: O áudio do sistema é capturado apenas ao compartilhar tela.

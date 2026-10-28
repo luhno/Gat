@@ -1,0 +1,9 @@
+node_modules
+dist
+release
+recover
+.git
+**/*.log
+docs/screenshots
+tests/e2e/artifacts
+.DS_Store
