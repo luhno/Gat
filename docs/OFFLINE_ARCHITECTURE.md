@@ -1,4 +1,4 @@
-# Arquitetura — Gather Offline
+# Arquitetura — DittoApp
 
 Reescrita do app desktop analisado em `../recover/` (GatherV2.app 0.55.2), com um requisito que o
 original não tem: **funcionar 100% offline**, sem nenhum servidor ou CDN externo.

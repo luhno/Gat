@@ -81,31 +81,25 @@ sempre-ligado de graça, **Oracle Cloud Always Free** (com `coturn` na mesma VM 
 
 ## Passo a passo — Render Free (recomendado p/ link fixo)
 
-O repositório local já está pronto para Git (`.gitignore`, `Dockerfile`, `render.yaml`).
+O repositório já está em <https://github.com/luhno/Gat> (branch `main`), com `.gitignore`,
+`Dockerfile` e `render.yaml`.
 
-1. Crie um repositório vazio no GitHub (privado serve) chamado `gather-offline`.
-2. Envie o projeto (na pasta `gather-offline`):
-
-   ```bash
-   git remote add origin https://github.com/SEU-USUARIO/gather-offline.git
-   git push -u origin main
-   ```
-
-3. Em <https://render.com>: **New → Blueprint**, conecte o GitHub e selecione o repositório.
+1. Em <https://render.com>: **New → Blueprint**, conecte o GitHub e selecione o repositório
+   `luhno/Gat`.
    O Render lê o `render.yaml` (serviço Docker free, health check `/healthz`) → **Apply**.
    (Alternativa manual: **New → Web Service → Docker**, repo, health check `/healthz`.)
-4. Aguarde o build (~2–5 min). A URL fica `https://gather-offline-xxxx.onrender.com`; abra
-   `https://gather-offline-xxxx.onrender.com/join` e compartilhe.
-5. Variáveis: `ROOM_NAME` e, se necessário, `ICE_SERVERS` (TURN). `PORT` é injetado pelo Render.
-6. Push na `main` → redeploy automático. O serviço free dorme após ~15 min sem visitas; a primeira
+2. Aguarde o build (~2–5 min). A URL fica `https://dittoapp-xxxx.onrender.com`; abra
+   `https://dittoapp-xxxx.onrender.com/join` e compartilhe.
+3. Variáveis: `ROOM_NAME` e, se necessário, `ICE_SERVERS` (TURN). `PORT` é injetado pelo Render.
+4. Push na `main` → redeploy automático. O serviço free dorme após ~15 min sem visitas; a primeira
    visita após dormir demora ~30–60 s (basta recarregar).
 
 ## Passo a passo — Docker em qualquer VPS
 
 ```bash
-docker build -t gather-offline .
+docker build -t dittoapp .
 docker run -d --restart=unless-stopped -p 8080:8080 \
-  -e ROOM_NAME="Escritório online" gather-offline
+  -e ROOM_NAME="Escritório online" dittoapp
 ```
 
 Coloque atrás de Caddy/nginx com TLS e WebSocket habilitado (no nginx: `proxy_set_header Upgrade

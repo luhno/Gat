@@ -1,4 +1,4 @@
-# Contratos — Gather Offline
+# Contratos — DittoApp
 
 Leia este arquivo inteiro antes de escrever código. Ele congela as interfaces entre os times.
 

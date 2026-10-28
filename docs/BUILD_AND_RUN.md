@@ -1,4 +1,4 @@
-# Build e execução — Gather Offline
+# Build e execução — DittoApp
 
 Guia para compilar, rodar em modo host/guest na LAN, testar e empacotar o app. O app é um
 estudo de engenharia reversa independente, **não afiliado à Gather Presence Inc.**
@@ -11,7 +11,7 @@ estudo de engenharia reversa independente, **não afiliado à Gather Presence In
 - Sessão gráfica ativa para abrir o app (não é um app headless).
 
 ```bash
-cd gather-offline
+cd Gat
 npm install        # só na primeira vez (é o único passo que precisa de internet)
 npm run typecheck  # opcional: tsc --noEmit
 ```
@@ -57,7 +57,7 @@ HTTPS+WSS embutido em `https://127.0.0.1:8787` (se a porta estiver ocupada, tent
 ### LAN e firewall (macOS)
 
 - Todas as máquinas precisam estar na mesma sub-rede e conseguir alcançar a porta do host.
-- No macOS, se o Firewall estiver ligado, permita conexões de entrada para o **Gather Offline**
+- No macOS, se o Firewall estiver ligado, permita conexões de entrada para o **DittoApp**
   (Ajustes do Sistema → Rede → Firewall → Opções) ou desative o modo de bloqueio para o teste.
   Na primeira execução o sistema pode perguntar "Deseja aceitar conexões de rede de entrada?".
 - Redes com isolamento de clientes (AP isolation) bloqueiam o acesso ao host e o P2P da mídia:
@@ -143,7 +143,7 @@ na raiz prontos para deploy.
 npm run dist       # build + electron-builder --mac --dir
 ```
 
-Saída: `release/mac-arm64/Gather Offline.app` (`electron-builder.yml`, alvo `dir`, arm64, asar,
+Saída: `release/mac-arm64/DittoApp.app` (`electron-builder.yml`, alvo `dir`, arm64, asar,
 **sem assinatura**: `identity: null`, `hardenedRuntime: false`). O `.app` contém
 `Contents/Resources/app.asar` com `dist/main`, `dist/client` e `package.json`.
 
@@ -151,19 +151,19 @@ Para gerar um **instalador DMG** (o `.app` + atalho para `/Applications`, pronto
 
 ```bash
 npx electron-builder --mac dmg
-# release/Gather Offline-1.0.0-arm64.dmg (~128 MB) + .blockmap
+# release/DittoApp-1.0.0-arm64.dmg (~128 MB) + .blockmap
 ```
 
 O DMG não altera o `electron-builder.yml` (o alvo `dir` continua sendo o default do `npm run dist`);
 a assinatura é ad-hoc/sem notarização, então em outra máquina o Gatekeeper bloqueia na primeira
 abertura — use botão direito → **Abrir**, ou remova o quarentena:
-`xattr -dr com.apple.quarantine "/caminho/Gather Offline.app"`.
+`xattr -dr com.apple.quarantine "/caminho/DittoApp.app"`.
 
 Para abrir o app empacotado em outra máquina (build não assinado/notarizado):
 
 ```bash
-xattr -dr com.apple.quarantine "release/mac-arm64/Gather Offline.app"
-open "release/mac-arm64/Gather Offline.app"
+xattr -dr com.apple.quarantine "release/mac-arm64/DittoApp.app"
+open "release/mac-arm64/DittoApp.app"
 ```
 
 Ou clique com o botão direito → **Abrir** na primeira vez. O app é um estudo: não tem updater,

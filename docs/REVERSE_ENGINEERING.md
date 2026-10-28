@@ -1,5 +1,10 @@
 # Dossiê de engenharia reversa — GatherV2.app 0.55.2
 
+> Nota (2026-10-28): o dossiê abaixo é sobre o app **original** do Gather. A reimplementação
+> descrita como `gather-offline/` passou a se chamar **DittoApp** (o diretório local do projeto
+> continua `gather-offline/`).
+
+
 Estudo independente do app desktop oficial do Gather (macOS, Electron 44.4.3, versão 0.55.2,
 bundle `com.gather.GatherV2`), usado como base para a reescrita offline em `gather-offline/`.
 Não é afiliado ao Gather Presence, Inc.

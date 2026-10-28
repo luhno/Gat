@@ -128,7 +128,7 @@ export function HomeScreen() {
             G
           </span>
           <div>
-            <h1>Gather Offline</h1>
+            <h1>DittoApp</h1>
             <p>Seu escritório na rede local — sem internet, sem conta.</p>
           </div>
         </div>

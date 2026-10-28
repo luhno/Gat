@@ -51,7 +51,7 @@ export function App() {
     return (
       <div className="splash">
         <span className="spinner" aria-hidden="true" />
-        <p>Carregando Gather Offline…</p>
+        <p>Carregando DittoApp…</p>
       </div>
     )
   }

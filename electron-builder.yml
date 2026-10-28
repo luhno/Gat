@@ -1,6 +1,6 @@
-appId: com.gatheroffline.app
-productName: Gather Offline
-copyright: Reverse-engineering study, not affiliated with Gather Presence Inc.
+appId: com.dittoapp.app
+productName: DittoApp
+copyright: DittoApp — reverse-engineering study, not affiliated with Gather Presence Inc.
 directories:
   output: release
 asar: true

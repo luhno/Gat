@@ -1,23 +1,29 @@
-# Gather Offline
+# DittoApp
 
-Reescrita offline do app desktop do Gather, feita a partir de engenharia reversa do `GatherV2.app`
-0.55.2 (macOS, Electron 44.4.3) — um estudo independente, não afiliado ao Gather.
+Sala de escritório virtual privada: roda **100% offline/LAN como app desktop** e também como **sala
+pública no navegador, por um link único**. Feita a partir de engenharia reversa do `GatherV2.app`
+0.55.2 (macOS, Electron 44.4.3) — um estudo independente, **não afiliado ao Gather**.
+
+Antes chamava-se *Gather Offline*; o nome atual é **DittoApp**.
 
 **O original** é só uma casca Electron: ele carrega o cliente web remoto `app.v2.gather.town`.
-**Este projeto** reimplementa a casca e o produto para rodar **sem internet**, com escritório em
-mapa, avatar que anda, chat e voz/vídeo por proximidade via WebRTC — inclusive multiplayer na LAN.
+**O DittoApp** reimplementa a casca e o produto: escritório em mapa, avatar que anda, chat e
+voz/vídeo por proximidade via WebRTC, com multiplayer na LAN e, opcionalmente, sala pública na web
+por link único.
 
 ## Começando
 
 ```bash
-cd gather-offline
+git clone https://github.com/luhno/Gat.git
+cd Gat
 npm install
 npm run build      # cliente (Vite) + main/preload (esbuild)
-npm start          # abre o app
+npm start          # abre o app desktop
 ```
 
-No app: preencha seu nome, clique em **Abrir meu escritório** (host). Para outro usuário na mesma
-rede: no app dele, informe `ip-do-host:8787` em **Entrar em sala da LAN**.
+No app desktop: preencha seu nome e clique em **Abrir meu escritório**; outro usuário na mesma rede
+informa `ip-do-host:8787` em **Entrar em sala da LAN**. Para a sala pública no navegador, veja
+[`docs/ONLINE_DEPLOY.md`](docs/ONLINE_DEPLOY.md) e compartilhe `https://<deploy>/join`.
 
 Testes:
 
@@ -27,7 +33,8 @@ npm test           # unidade (protocolo/colisão/proximidade)
 npm run test:e2e   # 2 instâncias, LAN, mídia fake, prova de offline
 ```
 
-Empacotamento local (sem assinatura): `npm run dist` → `release/mac-arm64/Gather Offline.app`.
+Empacotamento local (sem assinatura): `npm run dist` → `release/mac-arm64/DittoApp.app`;
+DMG: `npx electron-builder --mac dmg`.
 
 ## Documentação
 
@@ -39,6 +46,7 @@ Empacotamento local (sem assinatura): `npm run dist` → `release/mac-arm64/Gath
 - [`docs/BUILD_AND_RUN.md`](docs/BUILD_AND_RUN.md) — build, LAN, empacotamento e troubleshooting.
 - [`docs/ONLINE_DEPLOY.md`](docs/ONLINE_DEPLOY.md) — modo online no navegador (sala única por link,
   STUN/TURN, opções grátis de hospedagem e passo a passo de deploy).
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — plano de melhorias/QoL, rebrand DittoApp e fases de entrega.
 - [`docs/VERIFICATION.md`](docs/VERIFICATION.md) — matriz de verificação e evidências (screenshots).
 
 Artefatos da engenharia reversa ficam em `../recover/`: asar extraído, código-fonte recuperado dos

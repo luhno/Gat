@@ -88,7 +88,7 @@ after(async () => {
 })
 
 const tmpDir = async (): Promise<string> => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "gather-offline-test-"))
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dittoapp-test-"))
   tmpDirs.push(dir)
   return dir
 }
@@ -593,7 +593,7 @@ test("HTTPS: index, asset, SPA fallback, headers e bloqueio de path traversal", 
 
   const traversal = await httpsRequest(`${server.url}..%2f..%2fpackage.json`)
   assert.equal(traversal.status, 403)
-  assert.doesNotMatch(traversal.body, /gather-offline/)
+  assert.doesNotMatch(traversal.body, /dittoapp/)
 
   const method = await new Promise<number>((resolve, reject) => {
     const req = https.request(`${server.url}`, { method: "POST", rejectUnauthorized: false, agent: false }, (res) => {

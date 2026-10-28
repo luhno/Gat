@@ -1,10 +1,10 @@
 {
-  "name": "gather-offline",
-  "productName": "Gather Offline",
+  "name": "dittoapp",
+  "productName": "DittoApp",
   "version": "1.0.0",
   "private": true,
-  "description": "Offline-first reimplementation of the Gather desktop experience, built from a reverse-engineering study of GatherV2.app 0.55.2.",
-  "author": "Reverse-engineering study",
+  "description": "DittoApp — sala de escritório virtual privada (offline/LAN como app desktop e sala web por link único), estudo independente de engenharia reversa do GatherV2.app 0.55.2.",
+  "author": "DittoApp — reverse-engineering study",
   "license": "UNLICENSED",
   "main": "dist/main/main.cjs",
   "scripts": {

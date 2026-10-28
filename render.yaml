@@ -5,7 +5,7 @@
 # O serviço é Docker (Dockerfile na raiz) e o Render injeta PORT + HTTPS na borda.
 services:
   - type: web
-    name: gather-offline
+    name: dittoapp
     runtime: docker
     plan: free
     healthCheckPath: /healthz

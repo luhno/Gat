@@ -1,9 +1,9 @@
-# Standalone online room server for Gather Offline (one room per deployment).
+# Standalone online room server for DittoApp (one room per deployment).
 # The build stage compiles the web client + a self-contained HTTP/WSS server bundle,
 # so the runtime image needs no node_modules and no Electron.
 #
-#   docker build -t gather-offline .
-#   docker run --rm -p 8080:8080 -e ROOM_NAME="Escritório online" gather-offline
+#   docker build -t dittoapp .
+#   docker run --rm -p 8080:8080 -e ROOM_NAME="Escritório online" dittoapp
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1

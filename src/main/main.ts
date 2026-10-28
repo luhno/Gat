@@ -1,4 +1,4 @@
-// Electron main process for the offline Gather rewrite.
+// Electron main process for the DittoApp desktop shell (offline/LAN).
 //
 // Boot shape: one embedded HTTPS+WSS room server per instance, a single window
 // loading https://127.0.0.1:<port>/ (or a LAN host URL for guests), tray and

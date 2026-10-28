@@ -136,7 +136,7 @@ export function SettingsPanel({
       <section className="settings-section" aria-labelledby="settings-about-title">
         <h3 id="settings-about-title">Sobre</h3>
         <p className="settings-about">
-          Gather Offline {APP_VERSION} — sala local na rede, sem internet, sem telemetria.
+          DittoApp {APP_VERSION} — sala na rede local ou na web, sem telemetria.
         </p>
       </section>
     </aside>

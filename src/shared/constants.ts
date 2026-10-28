@@ -1,5 +1,5 @@
 export const APP_VERSION = "1.0.0"
-export const APP_DISPLAY_NAME = "Gather Offline"
+export const APP_DISPLAY_NAME = "DittoApp"
 export const PROTOCOL_VERSION = 1
 
 export const TILE_SIZE = 32

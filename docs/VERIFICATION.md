@@ -1,7 +1,10 @@
-# Verificação — Gather Offline
+# Verificação — DittoApp
 
 Status: **VERDE** (verificado em 2026-10-28). Este documento é o relatório reproduzível do que foi
 testado, como, e com quais evidências — incluindo o que **não** foi coberto.
+
+> **Rebrand M0 (2026-10-28):** todas as evidências abaixo foram revalidadas com a marca **DittoApp**
+> (offline e2e 17/17, online 8/8 e DMG `DittoApp-1.0.0-arm64.dmg`); screenshots regenerados.
 
 O app é um estudo de engenharia reversa independente, não afiliado à Gather Presence Inc.
 
@@ -19,7 +22,7 @@ O app é um estudo de engenharia reversa independente, não afiliado à Gather P
 ## Comando único
 
 ```bash
-cd gather-offline
+cd Gat
 npm install          # só na primeira vez
 npm run build
 npm run test:e2e     # sobe 2 instâncias Electron reais e roda a matriz abaixo
@@ -67,7 +70,7 @@ Saída resumida da última execução (portas dinâmicas, por isso variam a cada
 ```
 
 Outros comandos: `npm run typecheck` exit 0; `npm test` **30/30 testes passando, 0 falhas**;
-`npm run dist` exit 0 gerando `release/mac-arm64/Gather Offline.app` (≈308 MB, arm64, sem assinatura)
+`npm run dist` exit 0 gerando `release/mac-arm64/DittoApp.app` (≈308 MB, arm64, sem assinatura)
 com `Contents/Resources/app.asar` contendo `dist/main`, `dist/client` e `package.json`.
 Smoke do app empacotado (playwright-core, mesmo binário do `.app`): home abriu, escritório abriu e
 conectou (`Packaged`, 1 jogador) — build de distribuição funcional, não só o `npm start`.
