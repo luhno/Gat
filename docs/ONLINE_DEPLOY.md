@@ -11,9 +11,9 @@ mídia: WebRTC P2P com STUN (TURN opcional p/ NAT restritivo) — o servidor nã
 ```
 
 - **1 deploy = 1 sala.** Todos que abrirem o link entram na mesma sala.
-- Link único: `https://<host>/join` → redireciona para `/?autojoin=1`; o visitante entra como
+- Link único: `https://<host>/join` → redireciona para `/room?autojoin=1`; o visitante entra como
   `Convidado NNNN` (nome único automático) e pode renomear no painel **Configurações**.
-  Também dá para compartilhar `/?autojoin=1&name=Ana` (nome na URL) ou `/` (home, escolhe o nome).
+  Também dá para compartilhar `/room?autojoin=1&name=Ana` (nome na URL) ou `/room` (home, escolhe o nome).
 - Estado em memória (reiniciar limpa a sala), sem login/persistência, máximo de 6 jogadores.
 - Queda curta de rede: o cliente reconecta e **retoma o mesmo jogador** (token de sessão, grace de
   30 s). Queda do servidor/processo reinicia a sala (estado em memória).
@@ -39,10 +39,19 @@ node deploy/verify-online.mjs
 | Env | Default | Para quê |
 |---|---|---|
 | `PORT` | `8080` | porta HTTP interna |
-| `CLIENT_DIR` | `dist/client` | diretório do cliente compilado |
+| `CLIENT_DIR` | `dist/client` | diretório do cliente compilado (o servidor falha no boot se não houver `index.html`) |
 | `ROOM_NAME` | `Escritório online` | nome da sala na topbar |
-| `ICE_SERVERS` | Google + Cloudflare STUN | STUN/TURN p/ mídia na internet (JSON ou lista de URLs; vazio = STUN padrão) |
-| `PUBLIC_URL` | auto (Render/Fly) | URL usada só nos logs p/ montar o link |
+| `ICE_SERVERS` | Google + Cloudflare STUN | STUN/TURN p/ mídia na internet (JSON ou lista de URLs; inválido cai no STUN padrão com erro no log; `[]` desliga) |
+| `PUBLIC_URL` | auto (Render/Fly) | URL usada nos logs e para derivar o host permitido |
+| `ALLOWED_HOSTS` | host do `PUBLIC_URL`/Render/Fly | hosts extras aceitos no WS (domínio próprio/alias), separados por vírgula |
+| `TRUST_PROXY` | desligado | `1` = atrás de proxy: cap por IP usa `X-Forwarded-For` |
+| `TURN_SECRET` | vazio | segredo coturn REST: `/client-config.json` passa a gerar credenciais TURN efêmeras |
+| `TURN_TTL_SECONDS` | `3600` | validade da credencial TURN efêmera |
+
+Segurança da borda WS (P0 do checkup): o upgrade aceita `Origin` só se o host bater com o `Host`
+(sem `Origin` = cliente não-browser, permitido) e valida `Host` quando há allowlist; há teto global de
+conexões, teto por IP, timeout de 10 s para quem não faz `join` e orçamento de frames/bytes por
+conexão. Em produção atrás de proxy, mantenha `TRUST_PROXY=1`.
 
 Endpoints: `GET /` (landing), `GET /room` (app), `GET /join` (entrada direta, 302 →
 `/room?autojoin=1`), `GET /healthz` (health check), `GET /client-config.json` (online, sala, ICE) e
@@ -72,6 +81,10 @@ ICE_SERVERS='[{"urls":"turn:SEU-TURN:443","username":"user","credential":"pass"}
   teste, com limite de banda), **Cloudflare Calls TURN** (tem free tier), ou **coturn** self-hosted
   numa VM grátis (Oracle Always Free). Sem TURN, em NAT restritivo a sala/chat funcionam mas o
   áudio/vídeo pode não conectar.
+- **Credencial efêmera (recomendado):** configure `TURN_SECRET` (mesmo segredo do coturn REST) e o
+  servidor gera `username`/`credential` de curta duração por visita em `/client-config.json`; a
+  credencial estática deixa de ser pública. Provedores sem HMAC (Metered/Cloudflare) continuam
+  usando o `ICE_SERVERS` estático — siga a doc do provedor para rotação/limites.
 
 ## Opções grátis para hospedar (comparativo, out/2026)
 
@@ -103,7 +116,9 @@ O repositório já está em <https://github.com/luhno/Gat> (branch `main`), com 
    (Alternativa manual: **New → Web Service → Docker**, repo, health check `/healthz`.)
 2. Aguarde o build (~2–5 min). A URL fica `https://dittoapp-xxxx.onrender.com`; abra
    `https://dittoapp-xxxx.onrender.com/join` e compartilhe.
-3. Variáveis: `ROOM_NAME` e, se necessário, `ICE_SERVERS` (TURN). `PORT` é injetado pelo Render.
+3. Variáveis: `ROOM_NAME` e, se necessário, `ICE_SERVERS` (TURN). O `render.yaml` já liga
+   `TRUST_PROXY=1`; para domínio próprio use `ALLOWED_HOSTS=app.seudominio.com`. `PORT` é injetado
+   pelo Render.
 4. Push na `main` → redeploy automático. O serviço free dorme após ~15 min sem visitas; a primeira
    visita após dormir demora ~30–60 s (basta recarregar).
 

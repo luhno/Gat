@@ -1,7 +1,9 @@
+import { createHmac, randomUUID } from "node:crypto"
 import { promises as fs } from "node:fs"
 import http, { type IncomingMessage, type ServerResponse } from "node:http"
 import https from "node:https"
 import path from "node:path"
+import type { Duplex } from "node:stream"
 import { WebSocket, WebSocketServer } from "ws"
 
 import { MAX_MESSAGE_BYTES, PORT_ATTEMPTS, WS_PATH } from "../shared/constants"
@@ -27,6 +29,24 @@ export interface StartRoomServerOptions {
   online?: boolean
   /** Static landing site served at "/" in online mode (app stays at "/room"). */
   websiteDir?: string | null
+  /** Hostnames allowed in the Host header (public deploy). Omit to accept any Host (LAN/Electron). */
+  allowedHosts?: string[]
+  /** Trust X-Forwarded-For for the per-IP connection cap (only behind a reverse proxy). */
+  trustProxy?: boolean
+  /** Maximum concurrent WebSocket connections (default 64). */
+  maxConnections?: number
+  /** Maximum concurrent WebSocket connections per client IP (default 16). */
+  maxConnectionsPerIp?: number
+  /** Close sockets that do not send `join` within this window (default 10 s). */
+  joinTimeoutMs?: number
+  /** Per-connection message budget before JSON parsing, per second (default 200). */
+  maxFramesPerSecond?: number
+  /** Per-connection byte budget before JSON parsing, per second (default 1 MB). */
+  maxBytesPerSecond?: number
+  /** coturn REST secret: /client-config.json gets short-lived TURN credentials. */
+  turnSecret?: string
+  /** TURN credential lifetime in seconds (default 3600). */
+  turnTtlSeconds?: number
 }
 
 export interface RoomServer {
@@ -37,6 +57,27 @@ export interface RoomServer {
 
 const HEARTBEAT_INTERVAL_MS = 30_000
 const MAX_BUFFERED_BYTES = MAX_MESSAGE_BYTES * 64
+const DEFAULT_MAX_CONNECTIONS = 64
+const DEFAULT_MAX_CONNECTIONS_PER_IP = 16
+const DEFAULT_JOIN_TIMEOUT_MS = 10_000
+const DEFAULT_MAX_FRAMES_PER_SECOND = 200
+const DEFAULT_MAX_BYTES_PER_SECOND = 1024 * 1024
+const DEFAULT_TURN_TTL_SECONDS = 3600
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
+const TURN_URL_PATTERN = /^turns?:/i
+
+// HTML policy matches the client/index.html <meta> CSP (frame-ancestors is ignored in <meta>, so it
+// only works as a header); applying it to every response is harmless and keeps one source of truth.
+const SECURITY_HEADERS: Record<string, string> = {
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+  "referrer-policy": "no-referrer",
+  "permissions-policy": "camera=(self), microphone=(self), display-capture=(self)",
+  "content-security-policy":
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
+    "media-src 'self' blob: mediastream:; connect-src 'self' ws: wss:; font-src 'self'; object-src 'none'; " +
+    "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+}
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -45,7 +86,6 @@ const MIME: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".webmanifest": "application/manifest+json; charset=utf-8",
-  ".map": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -60,11 +100,57 @@ const MIME: Record<string, string> = {
   ".txt": "text/plain; charset=utf-8",
 }
 
+/** Host header -> hostname without port, lowercased. Empty when the value cannot be parsed. */
+const normalizeHostname = (value: string): string => {
+  const trimmed = value.trim().toLowerCase()
+  if (!trimmed) return ""
+  try {
+    return new URL(trimmed.includes("://") ? trimmed : `http://${trimmed}`).hostname
+  } catch {
+    return ""
+  }
+}
+
+/** Client IP used by the per-IP cap; X-Forwarded-For only when a reverse proxy is configured. */
+const clientIp = (req: IncomingMessage, trustProxy: boolean): string => {
+  if (trustProxy) {
+    const forwarded = req.headers["x-forwarded-for"]
+    const value = Array.isArray(forwarded) ? forwarded.join(",") : forwarded
+    // A proxy appends the real client at the END; the first entries are client-controlled.
+    const last = value
+      ?.split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .at(-1)
+    if (last) return last
+  }
+  return req.socket.remoteAddress ?? "unknown"
+}
+
+const rawBytes = (raw: WebSocket.RawData): number =>
+  Array.isArray(raw) ? raw.reduce((total, chunk) => total + chunk.byteLength, 0) : raw.byteLength
+
+const refuseUpgrade = (socket: Duplex, status: number, reason: string): void => {
+  socket.write(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`)
+  socket.destroy()
+}
+
+/** Polite close, but do not let a client that ignores the close frame keep its slot forever. */
+const closeOrTerminate = (ws: WebSocket, code: number, reason: string): void => {
+  ws.close(code, reason)
+  const timer = setTimeout(() => {
+    if (ws.readyState !== WebSocket.CLOSED) ws.terminate()
+  }, 1000)
+  timer.unref()
+}
+
+const isMapPath = (pathname: string): boolean => pathname.toLowerCase().endsWith(".map")
+
 const send = (res: ServerResponse, status: number, body: string, headers: Record<string, string> = {}): void => {
   res.writeHead(status, {
+    ...SECURITY_HEADERS,
     "content-type": "text/plain; charset=utf-8",
     "cache-control": "no-store",
-    "x-content-type-options": "nosniff",
     ...headers,
   })
   res.end(body)
@@ -95,6 +181,11 @@ const createStaticHandler = (root: string) => {
       send(res, 400, "bad request")
       return
     }
+    // Never serve source maps (they expose the client source); report a miss instead.
+    if (isMapPath(pathname)) {
+      send(res, 404, "not found")
+      return
+    }
     const requested = path.resolve(root, "." + pathname)
     if (requested !== root && !requested.startsWith(root + path.sep)) {
       send(res, 403, "forbidden")
@@ -105,6 +196,12 @@ const createStaticHandler = (root: string) => {
     let filePath = candidate
     let body = await readFile(candidate)
     if (!body) {
+      // SPA fallback only for extension-less routes: `/rota` gets the app, `/assets/x.js` gets 404
+      // (the service worker would otherwise cache the HTML under the asset URL and break the tab).
+      if (path.extname(pathname) !== "") {
+        send(res, 404, "not found")
+        return
+      }
       filePath = path.join(root, "index.html")
       body = await readFile(filePath)
     }
@@ -113,10 +210,10 @@ const createStaticHandler = (root: string) => {
       return
     }
     res.writeHead(200, {
+      ...SECURITY_HEADERS,
       "content-type": MIME[path.extname(filePath)!.toLowerCase()] ?? "application/octet-stream",
       "content-length": String(body.byteLength),
       "cache-control": "no-store",
-      "x-content-type-options": "nosniff",
     })
     res.end(req.method === "HEAD" ? undefined : body)
   }
@@ -129,21 +226,46 @@ export async function startRoomServer(options: StartRoomServerOptions): Promise<
   }
   const root = path.resolve(options.clientDir)
   const websiteRoot = options.websiteDir ? path.resolve(options.websiteDir) : null
+  // P1-12: a wrong CLIENT_DIR used to boot "healthy" and serve 404s. Fail fast with a clear message.
+  try {
+    await fs.access(path.join(root, "index.html"))
+  } catch {
+    throw new Error(
+      `CLIENT_DIR inválido: ${path.join(root, "index.html")} não existe. Aponte CLIENT_DIR para o build do cliente (dist/client).`,
+    )
+  }
   const handleStatic = createStaticHandler(root)
-  const clientConfig = JSON.stringify({
-    online: options.online === true,
-    roomName: options.roomName ?? "Escritório offline",
-    iceServers: options.iceServers ?? [],
-  })
+  const allowedHosts = (options.allowedHosts ?? []).map(normalizeHostname).filter(Boolean)
+  const trustProxy = options.trustProxy === true
+  const maxConnections = options.maxConnections ?? DEFAULT_MAX_CONNECTIONS
+  const maxConnectionsPerIp = options.maxConnectionsPerIp ?? DEFAULT_MAX_CONNECTIONS_PER_IP
+  const joinTimeoutMs = options.joinTimeoutMs ?? DEFAULT_JOIN_TIMEOUT_MS
+  const maxFramesPerSecond = options.maxFramesPerSecond ?? DEFAULT_MAX_FRAMES_PER_SECOND
+  const maxBytesPerSecond = options.maxBytesPerSecond ?? DEFAULT_MAX_BYTES_PER_SECOND
+  const turnSecret = options.turnSecret?.trim() || null
+  const turnTtlSeconds =
+    options.turnTtlSeconds !== undefined && options.turnTtlSeconds > 0 ? options.turnTtlSeconds : DEFAULT_TURN_TTL_SECONDS
+
+  // credentials: short-lived coturn-REST credentials, generated per request when a secret is set.
+  const clientConfig = (): string => {
+    const iceServers = (options.iceServers ?? []).map((server) => {
+      const urls = Array.isArray(server.urls) ? server.urls : [server.urls]
+      if (!turnSecret || !urls.some((url) => TURN_URL_PATTERN.test(url))) return server
+      const username = `${Math.floor(Date.now() / 1000) + turnTtlSeconds}:${randomUUID()}`
+      return { ...server, username, credential: createHmac("sha1", turnSecret).update(username).digest("base64") }
+    })
+    return JSON.stringify({ online: options.online === true, roomName: options.roomName ?? "Escritório offline", iceServers })
+  }
 
   const serveFile = async (res: ServerResponse, filePath: string, method: string): Promise<boolean> => {
+    if (isMapPath(filePath)) return false
     try {
       const body = await fs.readFile(filePath)
       res.writeHead(200, {
+        ...SECURITY_HEADERS,
         "content-type": MIME[path.extname(filePath).toLowerCase()] ?? "application/octet-stream",
         "content-length": String(body.byteLength),
         "cache-control": "no-store",
-        "x-content-type-options": "nosniff",
       })
       res.end(method === "HEAD" ? undefined : body)
       return true
@@ -154,16 +276,25 @@ export async function startRoomServer(options: StartRoomServerOptions): Promise<
 
   const handleRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const pathname = (req.url ?? "/").split("?")[0]
+    // DNS rebinding protection for HTML/config/assets when a host allowlist exists (healthz is exempt:
+    // hosting health checks may use an internal Host header).
+    if (allowedHosts.length > 0 && pathname !== "/healthz") {
+      const hostname = normalizeHostname(req.headers.host ?? "")
+      if (!hostname || (!LOOPBACK_HOSTS.has(hostname) && !allowedHosts.includes(hostname))) {
+        send(res, 421, "host não permitido")
+        return
+      }
+    }
     if (req.method === "GET" && pathname === "/healthz") {
       send(res, 200, "ok")
       return
     }
     if (req.method === "GET" && pathname === "/client-config.json") {
-      send(res, 200, clientConfig, { "content-type": "application/json; charset=utf-8" })
+      send(res, 200, clientConfig(), { "content-type": "application/json; charset=utf-8" })
       return
     }
     if (options.online === true && req.method === "GET" && pathname === "/join") {
-      res.writeHead(302, { location: "/room?autojoin=1" })
+      res.writeHead(302, { ...SECURITY_HEADERS, location: "/room?autojoin=1" })
       res.end()
       return
     }
@@ -245,6 +376,28 @@ export async function startRoomServer(options: StartRoomServerOptions): Promise<
   const room = createRoom({ name: options.roomName })
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES })
   wss.on("error", () => undefined)
+  const connectionsPerIp = new Map<string, number>()
+
+  // P0-2: WebSocket has no CORS, so an untrusted page could hijack the browser visitor. A browser
+  // always sends Origin; require it to match Host. No Origin = non-browser client (allowed).
+  const isUpgradeAllowed = (req: IncomingMessage): boolean => {
+    const host = req.headers.host?.toLowerCase()
+    if (allowedHosts.length > 0) {
+      const hostname = host ? normalizeHostname(host) : ""
+      if (!hostname || (!LOOPBACK_HOSTS.has(hostname) && !allowedHosts.includes(hostname))) return false
+    }
+    const origin = req.headers.origin
+    if (origin !== undefined) {
+      let originHost: string
+      try {
+        originHost = new URL(origin).host.toLowerCase()
+      } catch {
+        return false
+      }
+      if (!host || originHost !== host) return false
+    }
+    return true
+  }
 
   server.on("upgrade", (req, socket, head) => {
     let pathname: string
@@ -255,11 +408,39 @@ export async function startRoomServer(options: StartRoomServerOptions): Promise<
       return
     }
     if (pathname !== WS_PATH) {
-      socket.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
-      socket.destroy()
+      refuseUpgrade(socket, 404, "Not Found")
       return
     }
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req))
+    if (!isUpgradeAllowed(req)) {
+      refuseUpgrade(socket, 403, "Forbidden")
+      return
+    }
+    if (wss.clients.size >= maxConnections) {
+      refuseUpgrade(socket, 503, "Service Unavailable")
+      return
+    }
+    const ip = clientIp(req, trustProxy)
+    const fromIp = connectionsPerIp.get(ip) ?? 0
+    if (fromIp >= maxConnectionsPerIp) {
+      refuseUpgrade(socket, 429, "Too Many Requests")
+      return
+    }
+    connectionsPerIp.set(ip, fromIp + 1)
+    let released = false
+    const release = (): void => {
+      if (released) return
+      released = true
+      const next = (connectionsPerIp.get(ip) ?? 1) - 1
+      if (next <= 0) connectionsPerIp.delete(ip)
+      else connectionsPerIp.set(ip, next)
+    }
+    socket.once("close", release)
+    try {
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req))
+    } catch {
+      release()
+      socket.destroy()
+    }
   })
 
   const alive = new WeakMap<WebSocket, boolean>()
@@ -280,7 +461,33 @@ export async function startRoomServer(options: StartRoomServerOptions): Promise<
 
     ws.on("pong", () => alive.set(ws, true))
     ws.on("error", () => undefined)
+    // P0-1: a socket that never joins is dropped after a short window; frames/bytes are budgeted
+    // before JSON.parse so junk costs no parsing CPU. Both limits are overridable for tests.
+    let joinTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      client.send({ t: "error", code: "join_timeout", message: "Tempo para entrar na sala esgotado." })
+      closeOrTerminate(ws, 1008, "join timeout")
+    }, joinTimeoutMs)
+    joinTimer.unref()
+    const stopJoinTimer = (): void => {
+      if (joinTimer) clearTimeout(joinTimer)
+      joinTimer = null
+    }
+    let budgetStart = Date.now()
+    let frames = 0
+    let bytes = 0
     ws.on("message", (raw) => {
+      const now = Date.now()
+      if (now - budgetStart >= 1000) {
+        budgetStart = now
+        frames = 0
+        bytes = 0
+      }
+      frames += 1
+      bytes += rawBytes(raw)
+      if (frames > maxFramesPerSecond || bytes > maxBytesPerSecond) {
+        closeOrTerminate(ws, 1008, "limite de mensagens excedido")
+        return
+      }
       let message: unknown
       try {
         message = JSON.parse(String(raw))
@@ -303,6 +510,7 @@ export async function startRoomServer(options: StartRoomServerOptions): Promise<
             return
           }
           playerId = result.id
+          stopJoinTimer()
           return
         }
         room.handle(playerId, typed)
@@ -311,6 +519,7 @@ export async function startRoomServer(options: StartRoomServerOptions): Promise<
       }
     })
     ws.on("close", () => {
+      stopJoinTimer()
       alive.delete(ws)
       // Grace period: the client can resume with its session token after a network blip.
       if (playerId !== null) room.detach(playerId)

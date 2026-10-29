@@ -28,10 +28,15 @@ import {
   CHAT_RATE_WINDOW_MS,
   MAX_CHAT_LENGTH,
   MAX_MESSAGE_BYTES,
+  MAX_MOVE_STEP_PX,
   MAX_NAME_LENGTH,
   MAX_PLAYERS,
+  MEDIA_RATE_MAX,
   MOVE_RATE_MAX,
   MOVE_RATE_WINDOW_MS,
+  PROFILE_RATE_MAX,
+  SIGNAL_RATE_MAX,
+  SIGNAL_RATE_WINDOW_MS,
   WS_PATH,
 } from "../../src/shared/constants"
 import { DEFAULT_MAP } from "../../src/shared/defaultMap"
@@ -76,6 +81,19 @@ const testMap = (): OfficeMap => {
 }
 
 // --- process-wide cleanup so `node --test` always exits -------------------------------
+
+/** Wide open floor for proximity tests: enough room to walk out of PROXIMITY_EXIT_TILES. */
+const openMap = (): OfficeMap => ({
+  name: "open-map",
+  width: 24,
+  height: 4,
+  tileSize: 32,
+  floors: new Array<number>(24 * 4).fill(0),
+  walls: new Array<number>(24 * 4).fill(0),
+  objects: [],
+  zones: [],
+  spawn: { x: 2, y: 2 },
+})
 
 const tmpDirs: string[] = []
 const openServers: RoomServer[] = []
@@ -486,6 +504,33 @@ test("room: rejeita protocolo errado, perfil inválido e sala cheia", () => {
   assert.equal(extra.ok ? "" : extra.code, "room_full")
 })
 
+test("room: sala cheia evicta a vaga desconectada e aceita o 7º", () => {
+  const room = createRoom({ createId: idGenerator(), graceMs: 1000 })
+  const fakes: FakeClient[] = []
+  const ids: string[] = []
+  for (let i = 0; i < MAX_PLAYERS; i++) {
+    const fake = fakeClient()
+    fakes.push(fake)
+    ids.push(joinFake(room, fake))
+  }
+  for (const fake of fakes) fake.take()
+
+  room.detach(ids[1]!)
+  assert.equal(room.size(), MAX_PLAYERS, "desconectado ainda ocupa a vaga durante o grace")
+
+  const extra = fakeClient()
+  const result = room.join(extra.client, { protocol: PROTOCOL_VERSION, profile: PROFILE })
+  assert.equal(result.ok, true, "o 7º entra evictando a vaga-fantasma")
+  const welcome = expectType(extra.messages[0]!, "welcome")
+  assert.equal(welcome.players.length, MAX_PLAYERS)
+  assert.ok(!welcome.players.some((player) => player.id === ids[1]))
+  assert.equal(room.size(), MAX_PLAYERS)
+
+  const connected = fakes[0]!
+  assert.equal(expectType(connected.messages[0]!, "playerLeft").id, ids[1])
+  assert.equal(expectType(connected.messages[1]!, "playerJoined").player.id, result.ok ? result.id : "")
+})
+
 test("room: move aceita posição válida, resolve parede, ignora não-finitos e respeita rate limit", () => {
   let clock = 1000
   const room = createRoom({ now: () => clock, createId: idGenerator() })
@@ -510,8 +555,8 @@ test("room: move aceita posição válida, resolve parede, ignora não-finitos e
   room.handle(idA, asClient({ t: "move", x: spawn.x, y: spawn.y, dir: "sideways", moving: true }))
   assert.equal(a.messages.length, 0)
 
-  // Moving into the border wall is resolved back to the current spot (never inside a wall).
-  room.handle(idA, { t: "move", x: 0, y: 0, dir: "up", moving: true })
+  // Moving into a nearby wall is resolved back to the current spot (never inside a wall).
+  room.handle(idA, { t: "move", x: target.x, y: target.y - 60, dir: "up", moving: true })
   const wallMoved = expectType(a.messages[0]!, "playerMoved")
   assert.equal(isBlocked(DEFAULT_MAP, wallMoved.x, wallMoved.y), false)
   assert.equal(wallMoved.x, target.x)
@@ -521,6 +566,46 @@ test("room: move aceita posição válida, resolve parede, ignora não-finitos e
   clock += MOVE_RATE_WINDOW_MS
   for (let i = 0; i < MOVE_RATE_MAX + 2; i++) room.handle(idA, { t: "move", x: target.x, y: target.y, dir: "left", moving: false })
   assert.equal(a.messages.filter((message) => message.t === "playerMoved").length, MOVE_RATE_MAX)
+})
+
+test("room: move ignora teleporte (passo acima de MAX_MOVE_STEP_PX)", () => {
+  const room = createRoom({ createId: idGenerator() })
+  const a = fakeClient()
+  const idA = joinFake(room, a)
+  const spawn = tileCenter(DEFAULT_MAP, DEFAULT_MAP.spawn.x, DEFAULT_MAP.spawn.y)
+  a.take()
+
+  room.handle(idA, { t: "move", x: spawn.x + MAX_MOVE_STEP_PX + 100, y: spawn.y, dir: "right", moving: true })
+  assert.equal(a.messages.length, 0, "salto grande é ignorado")
+
+  // The normal step is resolved from the untouched spawn position, not from the teleport target.
+  room.handle(idA, { t: "move", x: spawn.x + 60, y: spawn.y, dir: "right", moving: true })
+  const moved = expectType(a.messages[0]!, "playerMoved")
+  assert.deepEqual({ x: moved.x, y: moved.y }, { x: spawn.x + 60, y: spawn.y })
+})
+
+test("room: velocidade limitada por orçamento (não só por salto)", () => {
+  let clock = 1000
+  const room = createRoom({ now: () => clock, createId: idGenerator() })
+  const a = fakeClient()
+  const idA = joinFake(room, a)
+  const spawn = tileCenter(DEFAULT_MAP, DEFAULT_MAP.spawn.x, DEFAULT_MAP.spawn.y)
+  a.take()
+
+  // Within the initial 240 px budget: accepted.
+  room.handle(idA, { t: "move", x: spawn.x + 100, y: spawn.y, dir: "right", moving: true })
+  assert.equal(a.messages.length, 1, "passo dentro do orçamento é aceito")
+  a.take()
+
+  // 150 px in the same instant exceeds the remaining budget even though it is below the hard cap.
+  clock += 10
+  room.handle(idA, { t: "move", x: spawn.x + 250, y: spawn.y, dir: "right", moving: true })
+  assert.equal(a.messages.length, 0, "salto abaixo do cap mas acima do orçamento é ignorado")
+
+  // After one second the budget refills and movement resumes.
+  clock += 1000
+  room.handle(idA, { t: "move", x: spawn.x + 250, y: spawn.y, dir: "right", moving: true })
+  assert.equal(a.messages.length, 1, "o orçamento reabastece com o tempo")
 })
 
 test("room: chat faz broadcast, respeita rate limit e ignora inválidos", () => {
@@ -586,6 +671,33 @@ test("room: profile/media viram playerUpdated para todos, inclusive o autor", ()
   assert.equal(b.messages.length, 0)
 })
 
+test("room: flood de signal/profile/media é descartado pelo rate limit", () => {
+  let clock = 1000
+  const room = createRoom({ now: () => clock, createId: idGenerator() })
+  const a = fakeClient()
+  const b = fakeClient()
+  const idA = joinFake(room, a)
+  const idB = joinFake(room, b)
+  a.take()
+  b.take()
+
+  for (let i = 0; i < SIGNAL_RATE_MAX + 5; i++) {
+    room.handle(idA, { t: "signal", to: idB, data: { kind: "ice", candidate: null } })
+  }
+  assert.equal(b.messages.filter((message) => message.t === "signal").length, SIGNAL_RATE_MAX, "uso normal passa, excedente cai")
+  b.take()
+  clock += SIGNAL_RATE_WINDOW_MS
+  room.handle(idA, { t: "signal", to: idB, data: { kind: "ice", candidate: null } })
+  assert.equal(b.messages.length, 1, "a janela expira e volta a aceitar")
+
+  b.take()
+  for (let i = 0; i < PROFILE_RATE_MAX + 5; i++) room.handle(idA, { t: "profile", patch: { name: `Ana ${i}` } })
+  assert.equal(b.messages.filter((message) => message.t === "playerUpdated").length, PROFILE_RATE_MAX)
+  b.take()
+  for (let i = 0; i < MEDIA_RATE_MAX + 5; i++) room.handle(idA, { t: "media", patch: { audioEnabled: i % 2 === 0 } })
+  assert.equal(b.messages.filter((message) => message.t === "playerUpdated").length, MEDIA_RATE_MAX)
+})
+
 test("room: signal vai só para o alvo existente; alvo inexistente é ignorado", () => {
   const room = createRoom({ createId: idGenerator() })
   const a = fakeClient()
@@ -605,6 +717,50 @@ test("room: signal vai só para o alvo existente; alvo inexistente é ignorado",
   room.handle(idA, asClient({ t: "signal", to: idB, data: { kind: "offer", sdp: "" } }))
   assert.equal(b.messages.length, 0)
   assert.equal(a.messages.length, 0)
+})
+
+test("room: signal e soundboard só cruzam jogadores próximos (screen share conecta todos)", () => {
+  const room = createRoom({ map: openMap(), createId: idGenerator(), random: () => 0 })
+  const a = fakeClient()
+  const b = fakeClient()
+  const idA = joinFake(room, a)
+  const idB = joinFake(room, b)
+  a.take()
+  b.take()
+  const chunk = { t: "soundboard" as const, clip: "clip-1", name: "aplausos", total: 1, index: 0, data: "aGVsbG8=" }
+
+  // Near: signal and soundboard are relayed.
+  room.handle(idA, { t: "signal", to: idB, data: { kind: "offer", sdp: "v=0" } })
+  assert.deepEqual(expectType(b.messages[0]!, "signal"), { t: "signal", from: idA, data: { kind: "offer", sdp: "v=0" } })
+  b.take()
+  room.handle(idA, chunk)
+  assert.equal(expectType(b.messages[0]!, "soundboard").from, idA)
+  b.take()
+
+  // Walk A far away with two legal steps (server positions are authoritative).
+  room.handle(idA, { t: "move", x: 300, y: 80, dir: "right", moving: true })
+  room.handle(idA, { t: "move", x: 500, y: 80, dir: "right", moving: true })
+  a.take()
+  b.take()
+
+  room.handle(idA, { t: "signal", to: idB, data: { kind: "offer", sdp: "v=0" } })
+  room.handle(idA, chunk)
+  assert.equal(b.messages.length, 0, "fora de proximidade: signal e soundboard são descartados")
+
+  // Either side screen-sharing bypasses proximity: first the sender, then the target.
+  room.handle(idA, { t: "media", patch: { screenSharing: true } })
+  a.take()
+  b.take()
+  room.handle(idA, { t: "signal", to: idB, data: { kind: "offer", sdp: "v=0" } })
+  assert.equal(expectType(b.messages[0]!, "signal").from, idA)
+  b.take()
+
+  room.handle(idA, { t: "media", patch: { screenSharing: false } })
+  room.handle(idB, { t: "media", patch: { screenSharing: true } })
+  a.take()
+  b.take()
+  room.handle(idA, { t: "signal", to: idB, data: { kind: "answer", sdp: "v=0" } })
+  assert.equal(expectType(b.messages[0]!, "signal").from, idA)
 })
 
 test("room: ping responde pong e join duplicado fecha a conexão", () => {

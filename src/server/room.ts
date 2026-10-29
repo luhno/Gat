@@ -3,11 +3,21 @@ import { randomUUID } from "node:crypto"
 import {
   CHAT_RATE_MAX,
   CHAT_RATE_WINDOW_MS,
+  MAX_MOVE_STEP_PX,
   MAX_PLAYERS,
+  MEDIA_RATE_MAX,
+  MEDIA_RATE_WINDOW_MS,
+  MOVE_BUDGET_FACTOR,
   MOVE_RATE_MAX,
   MOVE_RATE_WINDOW_MS,
+  PROFILE_RATE_MAX,
+  PROFILE_RATE_WINDOW_MS,
+  PROXIMITY_EXIT_TILES,
+  SIGNAL_RATE_MAX,
+  SIGNAL_RATE_WINDOW_MS,
   SOUNDBOARD_RATE_MAX,
   SOUNDBOARD_RATE_WINDOW_MS,
+  WALK_SPEED_PX_PER_S,
 } from "../shared/constants"
 import { DEFAULT_MAP } from "../shared/defaultMap"
 import { PROTOCOL_VERSION } from "../shared/protocol"
@@ -65,6 +75,12 @@ interface Entry {
   moveLimiter: RateLimiter
   chatLimiter: RateLimiter
   soundboardLimiter: RateLimiter
+  signalLimiter: RateLimiter
+  profileLimiter: RateLimiter
+  mediaLimiter: RateLimiter
+  /** Movement budget in pixels: refilled at walk speed × factor, capped at MAX_MOVE_STEP_PX. */
+  moveBudget: number
+  lastMoveAt: number
   session: string
   disconnected: boolean
   expiry: ReturnType<typeof setTimeout> | null
@@ -83,6 +99,10 @@ export const createRoom = (options: RoomOptions = {}): Room => {
   const broadcast = (message: ServerMessage): void => {
     for (const entry of players.values()) entry.client.send(message)
   }
+
+  /** Positions are world pixels; proximity rules are in tiles. */
+  const isNear = (a: PlayerState, b: PlayerState): boolean =>
+    Math.hypot(a.x - b.x, a.y - b.y) / map.tileSize <= PROXIMITY_EXIT_TILES
 
   const sendWelcome = (client: RoomClient, state: PlayerState, session: string): void => {
     client.send({
@@ -120,7 +140,13 @@ export const createRoom = (options: RoomOptions = {}): Room => {
     const profile = sanitizeProfile(message.profile)
     if (!profile) return { ok: false, code: "invalid_profile", message: "Perfil inválido." }
     if (players.size >= MAX_PLAYERS) {
-      return { ok: false, code: "room_full", message: `A sala está cheia (máximo de ${MAX_PLAYERS} jogadores).` }
+      // A detached player still holds a slot for the grace period; free the oldest phantom slot
+      // instead of refusing the newcomer (closing a tab does not send `leave`).
+      const disconnected = [...players.values()].find((entry) => entry.disconnected)
+      if (!disconnected) {
+        return { ok: false, code: "room_full", message: `A sala está cheia (máximo de ${MAX_PLAYERS} jogadores).` }
+      }
+      removePlayer(disconnected.state.id)
     }
     const spot = findSpawn(map, [...players.values()].map((entry) => entry.state), random)
     const state: PlayerState = {
@@ -140,6 +166,11 @@ export const createRoom = (options: RoomOptions = {}): Room => {
       moveLimiter: createRateLimiter(MOVE_RATE_MAX, MOVE_RATE_WINDOW_MS, now),
       chatLimiter: createRateLimiter(CHAT_RATE_MAX, CHAT_RATE_WINDOW_MS, now),
       soundboardLimiter: createRateLimiter(SOUNDBOARD_RATE_MAX, SOUNDBOARD_RATE_WINDOW_MS, now),
+      signalLimiter: createRateLimiter(SIGNAL_RATE_MAX, SIGNAL_RATE_WINDOW_MS, now),
+      profileLimiter: createRateLimiter(PROFILE_RATE_MAX, PROFILE_RATE_WINDOW_MS, now),
+      mediaLimiter: createRateLimiter(MEDIA_RATE_MAX, MEDIA_RATE_WINDOW_MS, now),
+      moveBudget: MAX_MOVE_STEP_PX,
+      lastMoveAt: now(),
       session: createId(),
       disconnected: false,
       expiry: null,
@@ -181,6 +212,7 @@ export const createRoom = (options: RoomOptions = {}): Room => {
         if (!chunk || !entry.soundboardLimiter.take()) return
         for (const other of players.values()) {
           if (other === entry || other.disconnected) continue
+          if (!isNear(entry.state, other.state)) continue
           other.client.send({ t: "soundboard", from: playerId, ...chunk })
         }
         return
@@ -188,6 +220,18 @@ export const createRoom = (options: RoomOptions = {}): Room => {
       case "move": {
         const intent = validateMove(message)
         if (!intent || !entry.moveLimiter.take()) return
+        // Movement authority: a budget refilled at 3x walking speed lets a client catch up after
+        // lag/jitter but blocks teleporting (MAX_MOVE_STEP_PX is the burst cap and budget ceiling).
+        const at = now()
+        const elapsedSeconds = Math.max(0, at - entry.lastMoveAt) / 1000
+        entry.lastMoveAt = at
+        entry.moveBudget = Math.min(
+          MAX_MOVE_STEP_PX,
+          entry.moveBudget + WALK_SPEED_PX_PER_S * MOVE_BUDGET_FACTOR * elapsedSeconds,
+        )
+        const distance = Math.hypot(intent.x - entry.state.x, intent.y - entry.state.y)
+        if (distance > entry.moveBudget) return
+        entry.moveBudget -= distance
         const next = resolveMovement(map, entry.state, intent)
         entry.state = { ...entry.state, x: next.x, y: next.y, dir: intent.dir, moving: intent.moving }
         broadcast({ t: "playerMoved", id: playerId, x: next.x, y: next.y, dir: intent.dir, moving: intent.moving })
@@ -195,14 +239,14 @@ export const createRoom = (options: RoomOptions = {}): Room => {
       }
       case "profile": {
         const patch = sanitizeProfilePatch(message.patch)
-        if (!patch) return
+        if (!patch || !entry.profileLimiter.take()) return
         entry.state = { ...entry.state, ...patch }
         broadcast({ t: "playerUpdated", id: playerId, patch })
         return
       }
       case "media": {
         const patch = sanitizeMediaPatch(message.patch)
-        if (!patch) return
+        if (!patch || !entry.mediaLimiter.take()) return
         entry.state = { ...entry.state, ...patch }
         broadcast({ t: "playerUpdated", id: playerId, patch })
         return
@@ -225,8 +269,12 @@ export const createRoom = (options: RoomOptions = {}): Room => {
       }
       case "signal": {
         const signal = validateSignal(message)
-        if (!signal || signal.to === playerId) return
-        players.get(signal.to)?.client.send({ t: "signal", from: playerId, data: signal.data })
+        if (!signal || signal.to === playerId || !entry.signalLimiter.take()) return
+        const target = players.get(signal.to)
+        if (!target) return
+        // Peers negotiate media only in proximity; screen share legitimately connects everyone.
+        if (!entry.state.screenSharing && !target.state.screenSharing && !isNear(entry.state, target.state)) return
+        target.client.send({ t: "signal", from: playerId, data: signal.data })
         return
       }
       case "ping": {

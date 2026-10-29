@@ -176,7 +176,7 @@ export function OfficeScreen() {
   }
 
   const retry = (): void => {
-    void connection.connect(getState().profile).catch(() => undefined)
+    void connection.retry(getState().profile).catch(() => undefined)
   }
 
   const sharerId = Array.from(media.remoteScreenSharing).find((id) => media.remoteStreams.has(id)) ?? null

@@ -1,4 +1,9 @@
-# Arquitetura — DittoApp
+# Arquitetura — DittoApp (modo Electron/LAN, legado)
+
+> **Documento do modo Electron/LAN (legado/estudo).** O produto é a sala web; a arquitetura atual e a
+> proposta organizada estão em [`ARCHITECTURE.md`](ARCHITECTURE.md). Drift conhecido neste documento: o
+> modo web **usa STUN/TURN** (`/client-config.json`), então as afirmações de "nenhum servidor externo em
+> runtime" valem só para o modo offline/LAN. Diagnóstico em [`CHECKUP_REPORT.md`](CHECKUP_REPORT.md).
 
 Reescrita do app desktop analisado em `../recover/` (GatherV2.app 0.55.2), com um requisito que o
 original não tem: **funcionar 100% offline**, sem nenhum servidor ou CDN externo.

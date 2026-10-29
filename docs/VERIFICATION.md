@@ -1,5 +1,10 @@
 # Verificação — DittoApp
 
+> **Atualização 2026-10-28 (P0 do checkup):** nova rodada completa verde — **49 testes unitários**
+> (12 novos de segurança/abuso), **verify-online 32/32**, **verify-pwa 17/17**, **verify-mobile 27/27**,
+> **e2e Electron 17/17**, build sem warnings e sourcemaps desligados no cliente. O que mudou e o
+> trade-off conhecido do F5 estão em [`CHECKUP_REPORT.md`](CHECKUP_REPORT.md) §1.1.
+
 Status: **VERDE** (verificado em 2026-10-28). Este documento é o relatório reproduzível do que foi
 testado, como, e com quais evidências — incluindo o que **não** foi coberto.
 

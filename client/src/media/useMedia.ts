@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import { PROXIMITY_ENTER_TILES } from "@shared/constants"
 import type { OfficeMap, PlayerState, RtcSignal } from "@shared/types"
 
 import { persistDeviceSettings } from "../desktop"
@@ -79,6 +80,10 @@ interface PeerSession {
   recoveryTimer: ReturnType<typeof setTimeout> | null
   /** Optional analyser used only to show who is speaking (never recorded). */
   analyser: AnalyserNode | null
+  /** Source feeding the analyser; created when the remote audio track arrives, not before. */
+  analyserSource: MediaStreamAudioSourceNode | null
+  /** Peer is within the proximity radius, so it may receive my mic/camera (screen goes to all). */
+  sendNear: boolean
 }
 
 interface PeerStatsEntry {
@@ -107,8 +112,8 @@ interface PeerStats {
 
 interface MediaEngine {
   reconcile(): void
-  applyAudio(): void
-  applyVideo(): void
+  setAudioEnabled(enabled: boolean): Promise<void>
+  setCameraEnabled(enabled: boolean): Promise<void>
   startScreenShare(): Promise<void>
   stopScreenShare(): void
   selectAudioInput(id: string): Promise<void>
@@ -131,13 +136,16 @@ const selectedFromSettings = (): SelectedDevices => {
 const friendlyMediaError = (error: unknown, label: string): string => {
   const name = error instanceof DOMException ? error.name : ""
   if (name === "NotAllowedError" || name === "SecurityError") {
-    return `Permissão de ${label} negada. O restante do app continua funcionando.`
+    return `Permissão de ${label} negada. Autorize no navegador e tente ligar de novo; o resto do app continua funcionando.`
   }
   if (name === "NotFoundError" || name === "OverconstrainedError") {
-    return `Nenhum ${label} disponível neste computador.`
+    return `Nenhum ${label} disponível. Conecte um dispositivo e tente de novo.`
   }
-  return `Não foi possível acessar o ${label}.`
+  return `Não foi possível acessar o ${label}. Tente de novo.`
 }
+
+/** Shown when the browser blocks remote audio until the first user gesture. */
+const AUTOPLAY_BLOCKED_MESSAGE = "Toque para ouvir a sala — o navegador bloqueou o áudio até uma interação."
 
 const setSinkId = (audio: HTMLAudioElement, deviceId: string | null): void => {
   if (deviceId && typeof audio.setSinkId === "function") void audio.setSinkId(deviceId).catch(() => undefined)
@@ -157,10 +165,10 @@ export function useMedia(options: {
   const selectedRef = useRef<SelectedDevices>(selectedFromSettings())
   const flagsRef = useRef({ audioEnabled: true, videoEnabled: true, screenSharing: false })
 
-  const [audioEnabled, setAudioEnabled] = useState(true)
-  const [videoEnabled, setVideoEnabled] = useState(true)
+  const [audioEnabled, setAudioEnabledState] = useState(true)
+  const [videoEnabled, setVideoEnabledState] = useState(true)
   const [screenSharing, setScreenSharing] = useState(false)
-  const [mediaError, setMediaError] = useState<string | null>(null)
+  const [mediaError, setMediaErrorState] = useState<string | null>(null)
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(() => new Map())
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [localScreenStream, setLocalScreenStream] = useState<MediaStream | null>(null)
@@ -174,7 +182,7 @@ export function useMedia(options: {
   // connection events must not read stale React props.
   useEffect(() => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices) {
-      setMediaError("Câmera e microfone não estão disponíveis neste ambiente.")
+      setMediaErrorState("Câmera e microfone não estão disponíveis neste ambiente.")
       return
     }
 
@@ -196,6 +204,63 @@ export function useMedia(options: {
     let mediaReady = false
     const pendingSignals: { from: string; data: RtcSignal }[] = []
     const peers = new Map<string, PeerSession>()
+    // Media may only be announced when it exists: keep the last message and the flags in sync.
+    let mediaErrorText: string | null = null
+    let autoplayBlocked = false
+    const updateMediaError = (message: string | null): void => {
+      if (destroyed) return
+      mediaErrorText = message
+      setMediaErrorState(message)
+    }
+    const clearAutoplayMessage = (): void => {
+      if (mediaErrorText === AUTOPLAY_BLOCKED_MESSAGE) updateMediaError(null)
+    }
+    const markAudioBlocked = (): void => {
+      if (destroyed) return
+      autoplayBlocked = true
+      // Silent audio breaks the meeting: this notice wins over other media errors.
+      updateMediaError(AUTOPLAY_BLOCKED_MESSAGE)
+    }
+    const markAudioPlaying = (): void => {
+      if (autoplayBlocked) {
+        autoplayBlocked = false
+        clearAutoplayMessage()
+      }
+      // Real remote audio is flowing: the gesture retry listeners are no longer needed.
+      if (hasPlayingRemoteAudio()) {
+        window.removeEventListener("pointerdown", unlockRemoteAudio, true)
+        window.removeEventListener("keydown", unlockRemoteAudio, true)
+      }
+    }
+    const hasPlayingRemoteAudio = (): boolean => {
+      for (const session of peers.values()) {
+        const source = session.audioEl.srcObject
+        if (!(source instanceof MediaStream) || source.getAudioTracks().length === 0) continue
+        if (!session.audioEl.paused) return true
+      }
+      return false
+    }
+    const playPeerAudio = (audioEl: HTMLAudioElement): void => {
+      void audioEl.play().then(markAudioPlaying).catch((error: unknown) => {
+        // Only the autoplay block is actionable by the user; other failures are not about a gesture.
+        if (error instanceof DOMException && error.name === "NotAllowedError") markAudioBlocked()
+      })
+    }
+    const unlockRemoteAudio = (): void => {
+      if (analysisContext?.state === "suspended") void analysisContext.resume().catch(() => undefined)
+      // Retries on every gesture while blocked; markAudioPlaying() removes these listeners once
+      // remote audio actually plays (removing them on the first gesture would lose the retry).
+      for (const session of peers.values()) {
+        if (autoplayBlocked || session.audioEl.paused) playPeerAudio(session.audioEl)
+      }
+    }
+    const broadcastFlags = (): void => {
+      connection.sendMedia({
+        audioEnabled: flagsRef.current.audioEnabled,
+        videoEnabled: flagsRef.current.videoEnabled,
+        screenSharing: flagsRef.current.screenSharing,
+      })
+    }
     // Online deployments receive public STUN/TURN servers here; the offline app's own
     // server returns an empty list, so no media traffic ever leaves the LAN.
     let iceServers: RTCIceServer[] = []
@@ -236,20 +301,39 @@ export function useMedia(options: {
 
     syncDatasets(new Map())
 
-    const desiredVideoTrack = (): MediaStreamTrack | null =>
-      localScreenTrack ?? (flagsRef.current.videoEnabled ? localCameraTrack : null)
+    const peerDistanceTiles = (peerId: string): number | null => {
+      const selfId = selfIdRef.current
+      const map = mapRef.current
+      if (!selfId || !map) return null
+      const self = playersRef.current[selfId]
+      const peer = playersRef.current[peerId]
+      if (!self || !peer) return null
+      return tileDistance(self, peer, map.tileSize)
+    }
+    const isNearPeer = (peerId: string): boolean => {
+      const distance = peerDistanceTiles(peerId)
+      return distance !== null && distance <= PROXIMITY_ENTER_TILES
+    }
+    const isRemoteSharingScreen = (peerId: string): boolean => Boolean(playersRef.current[peerId]?.screenSharing)
 
     const applyAudio = () => {
       if (localAudioTrack) localAudioTrack.enabled = flagsRef.current.audioEnabled
       for (const session of peers.values()) {
-        if (session.audioSender) void session.audioSender.replaceTrack(localAudioTrack).catch(() => undefined)
+        if (!session.audioSender) continue
+        // Mic goes only to near peers; a far peer never receives it, even during screen share.
+        void session.audioSender.replaceTrack(session.sendNear ? localAudioTrack : null).catch(() => undefined)
       }
     }
 
+    const videoTrackFor = (session: PeerSession): MediaStreamTrack | null => {
+      // Screen share is broadcast to everyone; the camera only reaches near peers.
+      if (flagsRef.current.screenSharing) return localScreenTrack
+      return session.sendNear && flagsRef.current.videoEnabled ? localCameraTrack : null
+    }
+
     const applyVideo = () => {
-      const track = desiredVideoTrack()
       for (const session of peers.values()) {
-        if (session.videoSender) void session.videoSender.replaceTrack(track).catch(() => undefined)
+        if (session.videoSender) void session.videoSender.replaceTrack(videoTrackFor(session)).catch(() => undefined)
       }
     }
 
@@ -258,6 +342,8 @@ export function useMedia(options: {
       if (!session) return
       if (session.recoveryTimer) clearTimeout(session.recoveryTimer)
       session.recoveryTimer = null
+      session.analyserSource?.disconnect()
+      session.analyserSource = null
       session.analyser?.disconnect()
       session.analyser = null
       peers.delete(peerId)
@@ -279,16 +365,22 @@ export function useMedia(options: {
       // to the remote offer's m-lines; only the lower id offers, so it can use
       // addTransceiver for a kind whose device is missing and still receive it.
       const initiator = isInitiator(selfIdRef.current ?? "", peerId)
-      const initialVideoTrack = localScreenTrack ?? localCameraTrack
-      const audioSender = localAudioTrack
-        ? pc.addTrack(localAudioTrack)
+      // Mic/camera only go to peers within proximity; screen share is broadcast to everyone.
+      const sendNear = isNearPeer(peerId)
+      const initialVideoTrack = flagsRef.current.screenSharing ? localScreenTrack : sendNear ? localCameraTrack : null
+      const audioSender = sendNear
+        ? localAudioTrack
+          ? pc.addTrack(localAudioTrack)
+          : initiator
+            ? pc.addTransceiver("audio", { direction: "sendrecv" }).sender
+            : null
         : initiator
-          ? pc.addTransceiver("audio", { direction: "sendrecv" }).sender
+          ? pc.addTransceiver("audio", { direction: "recvonly" }).sender
           : null
       const videoSender = initialVideoTrack
         ? pc.addTrack(initialVideoTrack)
         : initiator
-          ? pc.addTransceiver("video", { direction: "sendrecv" }).sender
+          ? pc.addTransceiver("video", { direction: sendNear ? "sendrecv" : "recvonly" }).sender
           : null
       const session: PeerSession = {
         pc,
@@ -302,6 +394,8 @@ export function useMedia(options: {
         ignoreOffer: false,
         recoveryTimer: null,
         analyser: null,
+        analyserSource: null,
+        sendNear,
       }
 
       audioEl.autoplay = true
@@ -310,16 +404,26 @@ export function useMedia(options: {
       audioEl.srcObject = stream
       setSinkId(audioEl, selectedRef.current.audioOutputId)
       document.body.appendChild(audioEl)
-      void audioEl.play().catch(() => undefined)
-      try {
-        analysisContext ??= new AudioContext()
-        const analyser = analysisContext.createAnalyser()
-        analyser.fftSize = 512
-        analysisContext.createMediaStreamSource(stream).connect(analyser)
-        session.analyser = analyser
-        if (analysisContext.state === "suspended") void analysisContext.resume()
-      } catch {
-        // Speaking activity is a bonus cue; media keeps working without it.
+      playPeerAudio(audioEl)
+
+      // The analyser must be attached to a track that already exists: a MediaStreamAudioSourceNode
+      // created from the empty stream is silent (and throws in some browsers). It is created when
+      // the remote audio track arrives, via ontrack.
+      const attachAnalyser = (track: MediaStreamTrack): void => {
+        try {
+          analysisContext ??= new AudioContext()
+          session.analyserSource?.disconnect()
+          session.analyser?.disconnect()
+          const analyser = analysisContext.createAnalyser()
+          analyser.fftSize = 512
+          const source = analysisContext.createMediaStreamSource(new MediaStream([track]))
+          source.connect(analyser)
+          session.analyserSource = source
+          session.analyser = analyser
+          if (analysisContext.state === "suspended") void analysisContext.resume().catch(() => undefined)
+        } catch {
+          // Speaking activity is a bonus cue; media keeps working without it.
+        }
       }
 
       pc.onnegotiationneeded = async () => {
@@ -353,6 +457,11 @@ export function useMedia(options: {
         const previous = stream.getTracks().find((existing) => existing.kind === track.kind)
         if (previous && previous !== track) stream.removeTrack(previous)
         if (!stream.getTracks().includes(track)) stream.addTrack(track)
+        if (track.kind === "audio") {
+          attachAnalyser(track)
+          // Safari can leave the element paused when the audio track appears after autoplay.
+          playPeerAudio(audioEl)
+        }
         emitRemoteStreams()
       }
 
@@ -403,19 +512,31 @@ export function useMedia(options: {
       const selfPlayer = selfId ? players[selfId] : undefined
       if (!selfId || !selfPlayer || !map) return
 
-      const forced =
-        flagsRef.current.screenSharing ||
-        Object.values(players).some((player) => player.id !== selfId && player.screenSharing)
-
+      const selfSharing = flagsRef.current.screenSharing
       const desired = new Set<string>()
       for (const player of Object.values(players)) {
         if (player.id === selfId) continue
-        if (forced || nextConnected(peers.has(player.id), tileDistance(selfPlayer, player, map.tileSize))) {
+        const distance = tileDistance(selfPlayer, player, map.tileSize)
+        // Sharing my screen connects to everyone (viewers need the broadcast). Watching a
+        // remote sharer connects only to that sharer, never to unrelated far peers.
+        if (selfSharing || player.screenSharing || nextConnected(peers.has(player.id), distance)) {
           desired.add(player.id)
         }
       }
 
-      for (const peerId of [...peers.keys()]) if (!desired.has(peerId)) closePeer(peerId)
+      for (const peerId of [...peers.keys()]) {
+        if (!desired.has(peerId)) {
+          closePeer(peerId)
+          continue
+        }
+        const session = peers.get(peerId)
+        if (!session) continue
+        // Recreate when proximity changes direction: a far watcher must start receiving mic/camera
+        // once it gets near, and a near peer that walked away must stop receiving them.
+        const distance = peerDistanceTiles(peerId)
+        if (distance === null) continue
+        if (nextConnected(session.sendNear, distance) !== session.sendNear) closePeer(peerId)
+      }
       for (const peerId of desired) if (!peers.has(peerId)) createPeer(peerId)
     }
 
@@ -429,6 +550,9 @@ export function useMedia(options: {
       if (!session) {
         // Candidates/answers without a session are stale; an offer means the peer wants a session.
         if (data.kind !== "offer") return
+        // Never answer an unsolicited offer from far away: the only legitimate case is a remote
+        // screen share (broadcast); otherwise that peer could pull our mic/camera from any distance.
+        if (!isNearPeer(from) && !isRemoteSharingScreen(from)) return
         session = createPeer(from)
       }
       const { pc } = session
@@ -489,7 +613,7 @@ export function useMedia(options: {
             // Report the original failure below.
           }
         }
-        if (!destroyed) setMediaError(friendlyMediaError(error, label))
+        if (!destroyed) updateMediaError(friendlyMediaError(error, label))
         return null
       }
     }
@@ -549,7 +673,7 @@ export function useMedia(options: {
       } catch (error) {
         // Cancelling the picker is expected and needs no message.
         if (error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "AbortError")) return
-        setMediaError("Não foi possível compartilhar a tela.")
+        updateMediaError("Não foi possível compartilhar a tela.")
       }
     }
 
@@ -559,6 +683,7 @@ export function useMedia(options: {
       const previous = localAudioTrack
       localAudioTrack = track
       applyAudio()
+      updateMediaError(null)
       previous?.stop()
       selectedRef.current.audioInputId = id
       setSelected((current) => ({ ...current, audioInputId: id }))
@@ -573,6 +698,7 @@ export function useMedia(options: {
       localCameraTrack = track
       publishLocalStream()
       applyVideo()
+      updateMediaError(null)
       previous?.stop()
       selectedRef.current.videoInputId = id
       setSelected((current) => ({ ...current, videoInputId: id }))
@@ -587,6 +713,108 @@ export function useMedia(options: {
       await persistDeviceSettings({ audioOutputId: id }).catch(() => undefined)
     }
 
+    /** Turn the mic on: reuse a live track or acquire a new one before announcing it as on. */
+    const setAudioEnabled = async (enabled: boolean): Promise<void> => {
+      if (destroyed) return
+      if (!enabled) {
+        flagsRef.current.audioEnabled = false
+        applyAudio()
+        setAudioEnabledState(false)
+        broadcastFlags()
+        return
+      }
+      if (localAudioTrack && localAudioTrack.readyState === "live") {
+        flagsRef.current.audioEnabled = true
+        applyAudio()
+        setAudioEnabledState(true)
+        updateMediaError(null)
+        broadcastFlags()
+        return
+      }
+      const track = await acquireTrack("audio", selectedRef.current.audioInputId)
+      if (destroyed) {
+        track?.stop()
+        return
+      }
+      if (!track) {
+        // No track means the toolbar must not claim "on".
+        flagsRef.current.audioEnabled = false
+        setAudioEnabledState(false)
+        broadcastFlags()
+        return
+      }
+      const previous = localAudioTrack
+      localAudioTrack = track
+      applyAudio()
+      previous?.stop()
+      flagsRef.current.audioEnabled = true
+      setAudioEnabledState(true)
+      updateMediaError(null)
+      broadcastFlags()
+      await refreshDevices()
+    }
+
+    /** Same contract for the camera: never announce "on" without a live track. */
+    const setCameraEnabled = async (enabled: boolean): Promise<void> => {
+      if (destroyed) return
+      if (!enabled) {
+        flagsRef.current.videoEnabled = false
+        applyVideo()
+        setVideoEnabledState(false)
+        broadcastFlags()
+        return
+      }
+      if (localCameraTrack && localCameraTrack.readyState === "live") {
+        flagsRef.current.videoEnabled = true
+        applyVideo()
+        publishLocalStream()
+        setVideoEnabledState(true)
+        updateMediaError(null)
+        broadcastFlags()
+        return
+      }
+      const track = await acquireTrack("video", selectedRef.current.videoInputId)
+      if (destroyed) {
+        track?.stop()
+        return
+      }
+      if (!track) {
+        flagsRef.current.videoEnabled = false
+        setVideoEnabledState(false)
+        broadcastFlags()
+        return
+      }
+      const previous = localCameraTrack
+      localCameraTrack = track
+      publishLocalStream()
+      applyVideo()
+      previous?.stop()
+      flagsRef.current.videoEnabled = true
+      setVideoEnabledState(true)
+      updateMediaError(null)
+      broadcastFlags()
+      await refreshDevices()
+    }
+
+    // Hot-plug: refresh the list and re-acquire a track that died (permission was already granted).
+    const reacquireIfDead = (kind: "audio" | "video"): void => {
+      const track = kind === "audio" ? localAudioTrack : localCameraTrack
+      const enabled = kind === "audio" ? flagsRef.current.audioEnabled : flagsRef.current.videoEnabled
+      if (!enabled || !track || track.readyState === "live") return
+      void (kind === "audio" ? setAudioEnabled(true) : setCameraEnabled(true)).catch(() => undefined)
+    }
+    const onDeviceChange = (): void => {
+      void refreshDevices()
+      reacquireIfDead("audio")
+      reacquireIfDead("video")
+    }
+    navigator.mediaDevices.addEventListener("devicechange", onDeviceChange)
+
+    // Autoplay: every gesture retries the hidden <audio> until remote audio actually plays
+    // (markAudioPlaying() removes the listeners); see unlockRemoteAudio above.
+    window.addEventListener("pointerdown", unlockRemoteAudio, true)
+    window.addEventListener("keydown", unlockRemoteAudio, true)
+
     void (async () => {
       await loadIceServers()
       const [audioTrack, cameraTrack] = await Promise.all([
@@ -598,13 +826,28 @@ export function useMedia(options: {
         cameraTrack?.stop()
         return
       }
-      localAudioTrack = audioTrack
-      localCameraTrack = cameraTrack
+      // A denied/absent device stays OFF: never announce "on" without a track.
+      // A track acquired by a concurrent toggle wins over this initial attempt.
+      if (audioTrack) {
+        if (localAudioTrack) audioTrack.stop()
+        else localAudioTrack = audioTrack
+      } else if (!localAudioTrack) {
+        flagsRef.current.audioEnabled = false
+        setAudioEnabledState(false)
+      }
+      if (cameraTrack) {
+        if (localCameraTrack) cameraTrack.stop()
+        else localCameraTrack = cameraTrack
+      } else if (!localCameraTrack) {
+        flagsRef.current.videoEnabled = false
+        setVideoEnabledState(false)
+      }
       publishLocalStream()
       mediaReady = true
       applyAudio()
       applyVideo()
       reconcile()
+      broadcastFlags()
       for (const signal of pendingSignals.splice(0)) void handleSignal(signal)
       await refreshDevices()
     })()
@@ -614,26 +857,12 @@ export function useMedia(options: {
     const offConnected = connection.onConnected(() => {
       // New selfId after a reconnect: every old peer connection is dead.
       for (const peerId of [...peers.keys()]) closePeer(peerId)
-      connection.sendMedia({
-        audioEnabled: flagsRef.current.audioEnabled,
-        videoEnabled: flagsRef.current.videoEnabled,
-        screenSharing: flagsRef.current.screenSharing,
-      })
+      broadcastFlags()
     })
 
     const offClosed = connection.onClosed(() => {
       for (const peerId of [...peers.keys()]) closePeer(peerId)
     })
-
-    // The office mounts after `welcome`, so the initial flags must be broadcast here;
-    // onConnected covers the reconnects where the hook was already mounted.
-    if (selfIdRef.current) {
-      connection.sendMedia({
-        audioEnabled: flagsRef.current.audioEnabled,
-        videoEnabled: flagsRef.current.videoEnabled,
-        screenSharing: flagsRef.current.screenSharing,
-      })
-    }
 
     const readPeerStats = async (pc: RTCPeerConnection): Promise<PeerStats> => {
       const report = await pc.getStats()
@@ -774,6 +1003,9 @@ export function useMedia(options: {
     const destroy = () => {
       if (destroyed) return
       destroyed = true
+      navigator.mediaDevices.removeEventListener("devicechange", onDeviceChange)
+      window.removeEventListener("pointerdown", unlockRemoteAudio, true)
+      window.removeEventListener("keydown", unlockRemoteAudio, true)
       clearInterval(watchdog)
       offSignal()
       offConnected()
@@ -801,8 +1033,8 @@ export function useMedia(options: {
 
     engineRef.current = {
       reconcile,
-      applyAudio,
-      applyVideo,
+      setAudioEnabled,
+      setCameraEnabled,
       startScreenShare,
       stopScreenShare,
       selectAudioInput,
@@ -820,19 +1052,11 @@ export function useMedia(options: {
   })
 
   const toggleAudio = useCallback(() => {
-    const enabled = !flagsRef.current.audioEnabled
-    flagsRef.current.audioEnabled = enabled
-    setAudioEnabled(enabled)
-    engineRef.current?.applyAudio()
-    connection.sendMedia({ audioEnabled: enabled })
+    void engineRef.current?.setAudioEnabled(!flagsRef.current.audioEnabled).catch(() => undefined)
   }, [])
 
   const toggleCamera = useCallback(() => {
-    const enabled = !flagsRef.current.videoEnabled
-    flagsRef.current.videoEnabled = enabled
-    setVideoEnabled(enabled)
-    engineRef.current?.applyVideo()
-    connection.sendMedia({ videoEnabled: enabled })
+    void engineRef.current?.setCameraEnabled(!flagsRef.current.videoEnabled).catch(() => undefined)
   }, [])
 
   const startScreenShare = useCallback(async () => {

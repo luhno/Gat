@@ -26,6 +26,20 @@ export const CHAT_RATE_WINDOW_MS = 5000
 export const CHAT_RATE_MAX = 8
 export const MOVE_RATE_WINDOW_MS = 1000
 export const MOVE_RATE_MAX = 40
+/** A `move` whose target is farther than this from the current position is ignored (anti-teleport).
+ * It is also the cap of the per-player movement budget (see WALK_SPEED_PX_PER_S/MOVE_BUDGET_FACTOR). */
+export const MAX_MOVE_STEP_PX = 240
+/** Legit walking speed (client prediction). The server refills a movement budget from this. */
+export const WALK_SPEED_PX_PER_S = 115
+/** Lag/jitter catch-up allowance: the server room refills the movement budget at 3x walking speed. */
+export const MOVE_BUDGET_FACTOR = 3
+
+export const SIGNAL_RATE_WINDOW_MS = 5000
+export const SIGNAL_RATE_MAX = 120
+export const PROFILE_RATE_WINDOW_MS = 5000
+export const PROFILE_RATE_MAX = 20
+export const MEDIA_RATE_WINDOW_MS = 5000
+export const MEDIA_RATE_MAX = 30
 
 export const PRIVATE_HOST_PATTERN =
   /^(localhost|127\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})|10\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})|192\.168\.(\d{1,3})\.(\d{1,3})|172\.(1[6-9]|2\d|3[01])\.(\d{1,3})\.(\d{1,3}))$/

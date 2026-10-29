@@ -12,6 +12,8 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "../dist/client"),
     emptyOutDir: true,
-    sourcemap: true,
+    // Produção não pode publicar sourcemaps: o servidor serve dist/client direto, então um
+    // `.map` ficaria acessível. Debug pode optar por SOURCEMAP=true.
+    sourcemap: process.env.SOURCEMAP === "true",
   },
 })

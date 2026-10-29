@@ -395,7 +395,8 @@ export function OfficeCanvas({
               <div className="player-anchor-inner">
                 {stream ? (
                   <div className="anchor-video">
-                    <VideoTile stream={stream} label={player.name} />
+                    {/* Muted: remote audio plays only in the hidden <audio> sink (setSinkId). */}
+                    <VideoTile stream={stream} label={player.name} muted />
                   </div>
                 ) : null}
                 <div

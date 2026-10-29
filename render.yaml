@@ -13,7 +13,14 @@ services:
     envVars:
       - key: ROOM_NAME
         value: Escritório online
+      # Atrás do Render o socket vê o IP da borda; TRUST_PROXY=1 faz o cap por IP usar
+      # X-Forwarded-For (P0 do checkup). Só ligue atrás de um proxy de confiança.
+      - key: TRUST_PROXY
+        value: "1"
       # STUN/TURN: sem ICE_SERVERS o app usa stun:stun.l.google.com:19302 (definido no código).
       # Para redes restritivas, adicione ICE_SERVERS no painel do Render (Environment) com um
-      # TURN grátis (Metered Open Relay, Cloudflare Calls TURN ou coturn numa VM):
+      # TURN (Cloudflare Calls TURN, Metered ou coturn numa VM):
       #   [{"urls":"turn:...:443","username":"...","credential":"..."}]
+      # Com TURN_SECRET (coturn REST) as credenciais viram efêmeras por visitante (TURN_TTL_SECONDS,
+      # default 3600). Domínio próprio/alias extra precisa entrar em ALLOWED_HOSTS (o host do
+      # RENDER_EXTERNAL_URL já é aceito automaticamente).

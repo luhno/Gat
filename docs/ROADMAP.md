@@ -1,5 +1,10 @@
 # DittoApp — Roadmap de melhorias e QoL
 
+> **Documento histórico (rebrand + fases até 2026-10-28).** O plano vigente, focado no produto web e com
+> mobile/desktop depriorizados, é o [`ROADMAP_WEB.md`](ROADMAP_WEB.md). O diagnóstico e o plano de
+> correção estão no [`CHECKUP_REPORT.md`](CHECKUP_REPORT.md); a arquitetura organizada, no
+> [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 Status: **aprovado com defaults** (2026-10-28) · Direção escolhida: **online público (link único)**.
 Escopo do documento: rebrand + fases de entrega com critérios de aceite observáveis. Nada aqui é
 executado antes do "aprovado" — o primeiro passo (M0) é mecânico e reversível, mas só começa depois

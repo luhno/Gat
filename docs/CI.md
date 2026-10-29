@@ -12,6 +12,7 @@ Badge: `https://github.com/luhno/Gat/actions/workflows/ci.yml/badge.svg?branch=m
 | Tipos | `npm run typecheck` | pega regressões de contrato entre cliente/servidor |
 | Unidade | `npm test` | sala/validação/colisão/proximidade/sessão (node:test) |
 | Build | `npm run build && npm run build:online` | cliente Vite + main/preload + servidor web standalone |
+| Imagem Docker | `docker build -t dittoapp:ci .` | valida o Dockerfile de deploy (P0 do checkup: antes só quebrava em produção) |
 | Online | `node deploy/verify-online.mjs` | 2 navegadores headless reais: link `/join`, nomes, chat, mídia fake, reconexão, sessão, soundboard, HUD, landing |
 | PWA/mobile | `deploy/verify-pwa.mjs`, `deploy/verify-mobile.mjs` | rodam quando os arquivos existem (entregas em paralelo) |
 | Artefatos | upload em falha | logs e screenshots em `tests/e2e/artifacts`, `docs/online`, `docs/screenshots` |

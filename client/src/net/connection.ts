@@ -18,12 +18,35 @@ type EventName = keyof ConnectionEvents
 
 export const MAX_RECONNECT_ATTEMPTS = 10
 
+/** Per-tab token so a reload can resume the same player within the server grace period. */
+const SESSION_STORAGE_KEY = "dittoapp.session.v1"
+
+const readStoredSession = (): string | null => {
+  try {
+    return sessionStorage.getItem(SESSION_STORAGE_KEY)
+  } catch {
+    // Storage disabled (private mode): fall back to the in-memory token only.
+    return null
+  }
+}
+
+const writeStoredSession = (token: string | null): void => {
+  try {
+    if (token) sessionStorage.setItem(SESSION_STORAGE_KEY, token)
+    else sessionStorage.removeItem(SESSION_STORAGE_KEY)
+  } catch {
+    // Same as above; session resume degrades to in-memory for this document.
+  }
+}
+
 /**
  * WebSocket client for the LAN room server. The page is always served by the host
  * (locally for the host itself, over the LAN for guests), so the socket is same-origin.
  */
 class RoomConnection {
   private socket: WebSocket | null = null
+  /** In-flight connect promise: a second connect() while dialing must reuse it, not open a new socket. */
+  private pending: Promise<void> | null = null
   private manualClose = false
   private reconnectAttempt = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -33,12 +56,28 @@ class RoomConnection {
   private lastSentMove = ""
   private profile: PlayerProfile | null = null
   /** Token from welcome; sent back on reconnects so the server resumes this player. */
-  private sessionToken: string | null = null
+  private sessionToken: string | null = readStoredSession()
+  /** Fatal join error from the server (room_full, protocol_mismatch…): no automatic reconnect (C9). */
+  private terminalError: string | null = null
+  private leaveSentOnUnload = false
   private handlers: { [K in EventName]: Set<(payload: ConnectionEvents[K]) => void> } = {
     signal: new Set(),
     soundboard: new Set(),
     connected: new Set(),
     closed: new Set(),
+  }
+
+  constructor() {
+    // Closing/reloading the tab never sends `leave`: the server keeps the slot in grace and
+    // the next person sees a phantom player (P0-5). Best-effort final message, sent once.
+    const leaveOnUnload = (): void => {
+      if (this.manualClose || this.leaveSentOnUnload) return
+      if (this.socket?.readyState !== WebSocket.OPEN) return
+      this.leaveSentOnUnload = true
+      this.send({ t: "leave" })
+    }
+    window.addEventListener("pagehide", leaveOnUnload)
+    window.addEventListener("beforeunload", leaveOnUnload)
   }
 
   onSignal(listener: (payload: ConnectionEvents["signal"]) => void): () => void {
@@ -73,11 +112,15 @@ class RoomConnection {
   async connect(profile: PlayerProfile): Promise<void> {
     this.profile = profile
     this.manualClose = false
+    // An explicit connect is also the manual retry path: a previous fatal server error is not final.
+    this.terminalError = null
+    if (this.pending) return this.pending
     if (this.socket && this.socket.readyState === WebSocket.OPEN) return
     actions.setError(null)
     actions.setConnection(this.reconnectAttempt === 0 ? "connecting" : "reconnecting")
+    this.leaveSentOnUnload = false
 
-    await new Promise<void>((resolve, reject) => {
+    this.pending = new Promise<void>((resolve, reject) => {
       const scheme = window.location.protocol === "https:" ? "wss" : "ws"
       const socket = new WebSocket(`${scheme}://${window.location.host}${WS_PATH}`)
       this.socket = socket
@@ -102,6 +145,13 @@ class RoomConnection {
           resolve()
           return
         }
+        if (message.t === "error" && !welcomed) {
+          // Fatal join errors arrive before welcome (and the server closes right after): retrying
+          // would hide the real reason behind "Reconectando…" for ~70 s (C9).
+          this.handleTerminalError(message.message)
+          reject(new Error(message.message))
+          return
+        }
         this.handleMessage(message)
       }
 
@@ -110,17 +160,39 @@ class RoomConnection {
       }
 
       socket.onclose = () => {
-        if (this.socket === socket) this.socket = null
+        const owned = this.socket === socket
+        if (owned) this.socket = null
+        if (!welcomed) reject(new Error(this.terminalError ?? "Não foi possível conectar ao servidor da sala."))
+        // A socket that is no longer the live one must not stop the live connection's timers
+        // or schedule a reconnect (that cascade is what a double connect() used to cause).
+        if (!owned) return
         this.stopTimers()
-        if (!welcomed) reject(new Error("Não foi possível conectar ao servidor da sala."))
         this.handleClose()
       }
+    }).finally(() => {
+      this.pending = null
     })
+
+    return this.pending
+  }
+
+  private handleTerminalError(message: string): void {
+    this.terminalError = message
+    // The token only resumes a detached player; after a rejected join it is useless (P0-7).
+    this.sessionToken = null
+    writeStoredSession(null)
+    actions.setConnection("error")
+    actions.setError(message)
+    // The server closes after a fatal join error; closing here keeps a live socket from
+    // blocking the manual retry if it ever does not.
+    this.socket?.close()
   }
 
   private handleWelcome(message: Extract<ServerMessage, { t: "welcome" }>): void {
     this.reconnectAttempt = 0
+    this.terminalError = null
     this.sessionToken = message.session
+    writeStoredSession(message.session)
     actions.setReconnectAttempt(0)
     this.stopTimers()
     actions.setSelfId(message.you.id)
@@ -177,6 +249,12 @@ class RoomConnection {
     this.emit("closed", undefined)
     if (this.manualClose) {
       actions.setConnection("idle")
+      return
+    }
+    if (this.terminalError) {
+      // Fatal server error: automatic retries would only hide it; wait for a manual retry (C9).
+      actions.setError(this.terminalError)
+      actions.setConnection("error")
       return
     }
     if (this.reconnectAttempt >= MAX_RECONNECT_ATTEMPTS || !this.profile) {
@@ -259,12 +337,22 @@ class RoomConnection {
     this.send({ t: "signal", to, data })
   }
 
+  /** Manual retry from the connection overlays: reset the attempt budget and fatal state first (C9). */
+  retry(profile: PlayerProfile): Promise<void> {
+    this.reconnectAttempt = 0
+    this.lastSentMove = ""
+    this.terminalError = null
+    actions.setReconnectAttempt(0)
+    return this.connect(profile)
+  }
+
   disconnect(): void {
     this.manualClose = true
     this.stopTimers()
     // Explicit leave so the server removes the player now instead of keeping the grace slot.
     this.send({ t: "leave" })
     this.sessionToken = null
+    writeStoredSession(null)
     this.socket?.close()
     this.socket = null
     this.profile = null

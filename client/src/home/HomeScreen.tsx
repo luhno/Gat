@@ -57,6 +57,8 @@ export function HomeScreen() {
   const updateProfile = (patch: Partial<PlayerProfile>): void => actions.setProfile(patch)
 
   const openOffice = async (): Promise<void> => {
+    // Enter is a separate path from the disabled button: ignore it while a connect is in flight.
+    if (connecting) return
     const name = profile.name.trim()
     if (!name) {
       setFormError("Escolha um nome para abrir o escritório.")
@@ -70,7 +72,8 @@ export function HomeScreen() {
     actions.setProfile({ name })
     try {
       await persistProfile(next).catch(() => undefined)
-      await connection.connect(next)
+      // retry() resets the attempt budget and fatal state, so a second failure backs off again.
+      await connection.retry(next)
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : "Não foi possível abrir o escritório.")
     } finally {

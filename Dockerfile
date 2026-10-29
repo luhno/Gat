@@ -16,9 +16,11 @@ FROM node:24-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/website ./website
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build --chown=node:node /app/website ./website
 EXPOSE 8080
+# Runtime não precisa de root (P1-12 do checkup / H0.3 do roadmap).
+USER node
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "dist/online/server.cjs"]

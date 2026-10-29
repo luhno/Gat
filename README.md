@@ -51,7 +51,7 @@ Testes:
 
 ```bash
 npm run typecheck
-npm test           # unidade (protocolo/colisão/proximidade)
+npm test           # unidade (protocolo/colisão/proximidade/sala/validação)
 npm run test:e2e   # 2 instâncias, LAN, mídia fake, prova de offline
 ```
 
@@ -68,7 +68,14 @@ DMG: `npx electron-builder --mac dmg`.
 - [`docs/BUILD_AND_RUN.md`](docs/BUILD_AND_RUN.md) — build, LAN, empacotamento e troubleshooting.
 - [`docs/ONLINE_DEPLOY.md`](docs/ONLINE_DEPLOY.md) — modo online no navegador (sala única por link,
   STUN/TURN, opções grátis de hospedagem e passo a passo de deploy).
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — plano de melhorias/QoL, rebrand DittoApp e fases de entrega.
+- [`docs/CHECKUP_REPORT.md`](docs/CHECKUP_REPORT.md) — **checkup geral**: bugs, segurança, performance,
+  ghost code, arquitetura e plano de correção priorizado (P0/P1/P2).
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — arquitetura atual e alvo do produto web, regras de
+  dependência, layout organizado e migração em 8 passos.
+- [`docs/ROADMAP_WEB.md`](docs/ROADMAP_WEB.md) — **roadmap vigente**, web-first (H0 confiável, H1 útil no
+  dia a dia, H2 ferramentas), com mobile/desktop em keep-alive.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — histórico de rebrand/QoL e fases de entrega (parte superada pelo
+  `ROADMAP_WEB.md`).
 - [`docs/QOL_AND_JUICE.md`](docs/QOL_AND_JUICE.md) — roadmap focado em QoL e game juice (sons,
   emotes, presença, ambiente e calibração de "feel").
 - [`docs/VERIFICATION.md`](docs/VERIFICATION.md) — matriz de verificação e evidências (screenshots).
