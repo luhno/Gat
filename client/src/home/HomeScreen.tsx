@@ -4,6 +4,7 @@ import { MAX_NAME_LENGTH, PRIVATE_HOST_PATTERN } from "@shared/constants"
 import type { PlayerProfile, UserStatus } from "@shared/types"
 
 import { CopyButton } from "../components/CopyButton"
+import { ShareButton } from "../components/ShareButton"
 import { Notice } from "../components/Notice"
 import { HAIR_STYLES, HAIR_STYLE_LABELS, SHIRT_COLORS, SKIN_TONES, STATUSES, STATUS_COLORS, STATUS_LABELS } from "../components/palette"
 import { desktop as desktopBridge, hasDesktopBridge, joinLanRoom, persistProfile } from "../desktop"
@@ -351,7 +352,7 @@ export function HomeScreen() {
               <ul className="address-list">
                 <li>
                   <code>{shareUrl}</code>
-                  <CopyButton text={shareUrl} label="Copiar link da sala" />
+                  <ShareButton url={shareUrl} title="Entre no meu escritório no DittoApp" />
                 </li>
               </ul>
               <p className="home-hint">O app desktop (Electron) continua no repositório para uso offline na LAN.</p>

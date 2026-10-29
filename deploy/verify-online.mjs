@@ -451,6 +451,13 @@ async function main() {
       fail("link da sala no escritório", `contagem=${shareLinks}`)
       failed = true
     }
+    const shareButton = await visitor.locator('[data-testid="share-room"]').count()
+    if (shareButton === 1) {
+      pass("botão compartilhar o link", "share sheet no celular, copiar no desktop")
+    } else {
+      fail("botão compartilhar", `contagem=${shareButton}`)
+      failed = true
+    }
 
     // WC-1 — prévia local da câmera no painel de configurações
     await visitor.click('[data-testid="toolbar-settings"]')

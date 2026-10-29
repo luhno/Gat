@@ -88,12 +88,12 @@ Objetivo: transformar o online funcional em algo que dá para mandar para qualqu
 
 | # | Entrega | O que muda (mínimo) | Aceite observável | Esforço |
 |---|---|---|---|---|
-| ✅ T1.0 | Landing pública | site estático em `website/` servido em `/` (app em `/room`), com OG, a11y e contraste verificados | `verify-online` 31/31 | 1 d |
+| ✅ T1.0 | Landing pública | site estático em `website/` servido em `/` (app em `/room`), com OG, a11y e contraste verificados | `verify-online` 32/32 | 1 d |
 | T1.1 | Deploy fixo | Render Free (Blueprint `render.yaml`), health check `/healthz`, doc "deploy em 5 min"; uptime/monitor opcional documentado | URL pública estável; `/healthz` 200; `/join` abre a sala; cold start explicado | 0,5 d (usuário cria conta) |
 | ✅ T1.2 | Link preview + favicon | meta `description`, Open Graph/Twitter no `index.html`; favicon e `theme-color` | colar o link no WhatsApp/Discord mostra DittoApp + descrição; favicon correto | 0,5 d |
 | ✅ T1.3 | Nome/avatar persistidos no navegador | `localStorage` para perfil quando não há bridge desktop; restaurar no boot; opção de limpar | recarregar e abrir nova aba mantém nome/avatar; anônimo vira `Convidado NNNN` | 1 d |
 | ✅ T1.4 | Home web clara | esconder seção LAN no navegador, CTA "Entrar na sala", campo nome, contador de pessoas, link copiável | usuário novo entra em 2 cliques sem instruções; sem textos de "host" enganosos | 1 d |
-| T1.5 | Compartilhar | botão copiar link + `navigator.share` (mobile); QR fica para a Fase 2 | copiar/share funcionam em desktop e mobile | 0,5 d |
+| ✅ T1.5 | Compartilhar | botão copiar link + `navigator.share` (mobile); QR fica para a Fase 2 | copiar/share funcionam em desktop e mobile | 0,5 d |
 | ✅ T1.6 | PWA instalável | `manifest.webmanifest` + ícones + service worker cache do shell + página de fallback sem rede | "adicionar à tela inicial" no Android/iOS; reabrir offline mostra shell com aviso; WS continua funcionando quando online | 1–1,5 d |
 | ✅ T1.7 | Mobile/touch | canvas responsivo (viewport dinâmico), joystick/mobile controls, safe-area, esconder dicas de teclado, chat usável no celular | Safari iOS + Chrome Android: andar, abrir chat, mídia; sem overflow/zoom acidental | 2–3 d |
 | ✅ T1.8 | Reconexão visível | overlay “Reconectando… (tentativa n/10)”, retry manual, volta automática sem sair da tela (retomada de sessão preserva o jogador) | queda → overlay com tentativa → volta sozinho sem recarregar | 1 d |
@@ -200,7 +200,7 @@ faz os outros módulos parecerem bons ou ruins na internet).
 ### Critérios de aceite globais para qualquer entrega deste bloco
 
 - `npm run typecheck`, `npm test`, `npm run test:e2e` (offline 17/17) e
-  `node deploy/verify-online.mjs` (31/31 + novos checks) verdes.
+  `node deploy/verify-online.mjs` (32/32 + novos checks) verdes.
 - Nenhum request externo novo na página; TURN/STUN só via `/client-config.json`.
 - Stats de mídia medidos (`getStats`), não estimados; documentar o número antes/depois nas tarefas
   de bitrate/qualidade.
@@ -239,11 +239,12 @@ Protótipo já entregue nesta rodada: **NET-1, NET-2 e NET-3** (ver commits e `v
 
 - M0 (rebrand), **T1.0 (landing pública)**, **NET-4 (retomada de sessão)**, **T1.8 (reconexão visível)**
   e **QoL-6 (link copiável)**; T1.2/T1.3/T1.4 (link preview/favicon, perfil persistido
-  no navegador, home web) **concluídos** — verificação online 31/31, unit 34/34 e regressão offline 17/17.
+  no navegador, home web) **concluídos** — verificação online 32/32, unit 34/34 e regressão offline 17/17.
 - **Pendente do usuário:** criar o serviço Render (`https://render.com/deploy?repo=https://github.com/luhno/Gat`)
   e informar a URL para eu validar o T1.1.
 - **PWA (T1.6)**, **mobile/touch (T1.7)** e **CI GitHub Actions (T1.11)** concluídos:
   `verify-pwa` 17/17, `verify-mobile` 27/27, workflow `.github/workflows/ci.yml` + badge no README.
-  Gates mantidos: online 31/31, e2e offline/LAN 17/17, unit 34/34.
-- Próximas entregas web: **T1.5 compartilhar (share sheet/QR)** e **T1.9 mídia/TURN no celular**;
+  Gates mantidos: online 32/32, e2e offline/LAN 17/17, unit 34/34.
+- **T1.5 (compartilhar)** concluído: `navigator.share` no celular com fallback de cópia no desktop
+  (`[data-testid="share-room"]`; `verify-online` 32/32). Próxima entrega: **T1.9 mídia/TURN no celular**;
   T1.1 continua pendente do deploy Render do usuário.

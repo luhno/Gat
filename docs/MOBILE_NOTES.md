@@ -35,7 +35,7 @@ desktop (a HUD de toque só monta quando o aparelho é touch).
 ```bash
 npm run build && node deploy/build-online.mjs
 node deploy/verify-mobile.mjs      # 27/27, screenshot docs/online/mobile-office.png
-node deploy/verify-online.mjs      # 31/31 desktop/online
+node deploy/verify-online.mjs      # 32/32 desktop/online
 npm run test:e2e                   # 17/17 offline (mesmo OfficeCanvas, WASD/clique intactos)
 ```
 

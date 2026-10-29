@@ -76,7 +76,7 @@ Revisão de QoL/UX: preferências acessíveis com toggle/volume/select; reduced 
 teste; nada de estado apenas por cor/movimento; sons nunca bloqueiam a ação e respeitam o mute.
 
 Verificação: `npm run typecheck` ✅ · `npm test` 34/34 · `npm run test:e2e` 17/17 ·
-`node deploy/verify-online.mjs` **31/31** (inclui preferências de som/movimento e reduced motion).
+`node deploy/verify-online.mjs` **32/32** (inclui preferências de som/movimento e reduced motion).
 
 ## Sprint 2 — "Presença expressiva" (3–5 dias) — P0/P1
 

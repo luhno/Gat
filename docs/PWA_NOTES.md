@@ -62,7 +62,7 @@ no script).
 ```
 npm run build && node deploy/build-online.mjs
 node deploy/verify-pwa.mjs   # 17/17 (avisa enquanto a integração de main.tsx não existe)
-node deploy/verify-online.mjs # 31/31 (gate de regressão online)
+node deploy/verify-online.mjs # 32/32 (gate de regressão online)
 ```
 
 `verify-pwa` sobe o servidor online em porta efêmera e checa, com Chrome real (`playwright-core`

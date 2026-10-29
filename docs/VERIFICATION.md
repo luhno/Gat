@@ -9,7 +9,7 @@ testado, como, e com quais evidências — incluindo o que **não** foi coberto.
 > **Produto 100% web (2026-10-28):** o empacotamento macOS deixa de fazer parte do aceite; o DMG
 > existente é legado de estudo. Entregas web já verificadas: landing pública (`website/`),
 > link preview/favicon, home web sem ferramentas de LAN e perfil do navegador persistido
-> (`verify-online` 31/31, `npm test` 34/34).
+> (`verify-online` 32/32, `npm test` 34/34).
 
 > **Fase 1 web — PWA, mobile e CI (2026-10-28):** PWA instalável verificada com
 > `node deploy/verify-pwa.mjs` (**17/17** — manifest/MIME/ícones, SW controlando a página, shell offline
@@ -17,7 +17,9 @@ testado, como, e com quais evidências — incluindo o que **não** foi coberto.
 > `node deploy/verify-mobile.mjs` (**27/27** — joystick move o avatar, chat/sheets, safe-area, sem
 > overflow em 320px, desktop intacto) e CI no GitHub Actions
 > ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml), badge no README; ver `docs/CI.md`).
-> Gates mantidos: `npm test` **34/34**, `verify-online` **31/31** e e2e offline/LAN **17/17**.
+> T1.5 (compartilhar) incluído: share sheet nativo no celular e cópia no desktop
+> (`[data-testid="share-room"]`, `verify-online` **32/32**).
+> Gates mantidos: `npm test` **34/34**, `verify-online` **32/32** e e2e offline/LAN **17/17**.
 
 O app é um estudo de engenharia reversa independente, não afiliado à Gather Presence Inc.
 
@@ -194,7 +196,7 @@ Adicionado depois da verificação offline, sem mudar o comportamento Electron/L
 | O que | Como | Resultado |
 |---|---|---|
 | Build do servidor web | `npm run build && node deploy/build-online.mjs` | ✅ |
-| Sala única no navegador | `node deploy/verify-online.mjs` (Chrome real, devices fake) | ✅ **31/31**: `/join`, `client-config.json` com 2 STUN, 2 jogadores com nomes únicos, canvas, chat, WebRTC peers ≥ 1, nenhum request externo, metas OG/favicon, home web clara (sem LAN), perfil persistido entre reloads |
+| Sala única no navegador | `node deploy/verify-online.mjs` (Chrome real, devices fake) | ✅ **32/32**: `/join`, `client-config.json` com 2 STUN, 2 jogadores com nomes únicos, canvas, chat, WebRTC peers ≥ 1, nenhum request externo, metas OG/favicon, home web clara (sem LAN), perfil persistido entre reloads |
 | Capacidade da sala | `verify-online`: 6 clientes WS entram; o 7º recebe `room_full` | ✅ limite de **6 pessoas** aplicado no servidor |
 | Diagnóstico de conexão | `verify-online`: `getStats` do par selecionado exposto no hook | ✅ rota (host/srflx/relay), RTT, jitter e pacotes perdidos na seção “Conexão” das Configurações |
 | Prévia local da câmera | `verify-online`: `video.srcObject` no painel de Configurações | ✅ prévia espelhada quando a câmera está ligada; texto de estado quando desligada |

@@ -140,7 +140,7 @@ não para produção.
 ## Verificação feita (2026-10-28)
 
 - `npm run build && node deploy/build-online.mjs` ok.
-- `node deploy/verify-online.mjs` → **31/31** (link `/join`, `client-config.json`, capacidade de 6,
+- `node deploy/verify-online.mjs` → **32/32** (link `/join`, `client-config.json`, capacidade de 6,
   retomada de sessão, link copiável, diagnóstico de conexão e prévia local da câmera, 2 navegadores,
   nomes únicos, canvas, chat, WebRTC por proximidade, nenhum request externo, metas OG/favicon,
   landing em `/` com assets `/site/*`, home web clara, perfil persistido entre reloads,

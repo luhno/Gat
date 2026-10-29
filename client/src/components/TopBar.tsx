@@ -4,6 +4,7 @@ import type { RoomSummary } from "@shared/types"
 
 import type { ConnectionStatus } from "../state/store"
 import { CopyButton } from "./CopyButton"
+import { ShareButton } from "./ShareButton"
 
 export const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
   idle: "Desconectado",
@@ -61,7 +62,7 @@ export function TopBar({
           <span className="topbar-lan" data-testid="share-room-link">
             <span className="topbar-lan-label">Sala</span>
             <code>{roomLink.replace(/^https?:\/\//, "")}</code>
-            <CopyButton text={roomLink} label="Copiar link da sala" className="btn btn-ghost btn-xs" />
+            <ShareButton url={roomLink} title="Entre no meu escritório no DittoApp" className="btn btn-ghost btn-xs" />
           </span>
         ) : null}
       </div>
