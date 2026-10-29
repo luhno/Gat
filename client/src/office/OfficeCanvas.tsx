@@ -1,4 +1,4 @@
-import { useEffect, useRef, type JSX } from "react"
+import { useEffect, useRef, type JSX, type RefObject } from "react"
 
 import { resolveMovement, tileCenter } from "@shared/collision"
 import type { Direction, PlayerState } from "@shared/types"
@@ -6,6 +6,7 @@ import type { Direction, PlayerState } from "@shared/types"
 import { STATUS_COLORS } from "../components/palette"
 import { VideoTile } from "../media/VideoTile"
 import { isReducedMotion } from "../audio/uiSound"
+import type { MoveVector } from "../mobile/VirtualJoystick"
 import { connection } from "../net/connection"
 import { getState, useStore } from "../state/store"
 import { AVATAR_LABEL_OFFSET } from "./avatar"
@@ -42,7 +43,16 @@ const clampAxis = (value: number, viewSize: number, mapSize: number): number => 
   return Math.min(Math.max(value, half), mapSize - half)
 }
 
-export function OfficeCanvas({ streams }: { streams: Map<string, MediaStream> }): JSX.Element {
+export function OfficeCanvas({
+  streams,
+  moveInput,
+  touch,
+}: {
+  streams: Map<string, MediaStream>
+  /** Touch joystick vector read by the render loop (no React re-render while walking). */
+  moveInput?: RefObject<MoveVector>
+  touch?: boolean
+}): JSX.Element {
   const state = useStore()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const anchorsRef = useRef<HTMLDivElement | null>(null)
@@ -192,12 +202,19 @@ export function OfficeCanvas({ streams }: { streams: Map<string, MediaStream> })
       if (keys.has("d") || keys.has("arrowright")) inputX += 1
       if (keys.has("w") || keys.has("arrowup")) inputY -= 1
       if (keys.has("s") || keys.has("arrowdown")) inputY += 1
+      const analog = moveInput?.current
+      if (analog && (analog.x !== 0 || analog.y !== 0)) {
+        inputX = analog.x
+        inputY = analog.y
+      }
 
       if (inputX !== 0 || inputY !== 0) {
         walkTarget = null
         const length = Math.hypot(inputX, inputY)
-        const stepX = (inputX / length) * WALK_SPEED * dt
-        const stepY = (inputY / length) * WALK_SPEED * dt
+        // Joystick deflection scales the speed; keyboard input is always ≥ 1 (diagonal is √2).
+        const strength = Math.min(1, length)
+        const stepX = (inputX / length) * WALK_SPEED * strength * dt
+        const stepY = (inputY / length) * WALK_SPEED * strength * dt
         const moved = resolveMovement(map, { x: selfX, y: selfY }, { x: selfX + stepX, y: selfY + stepY })
         selfX = moved.x
         selfY = moved.y
@@ -363,7 +380,11 @@ export function OfficeCanvas({ streams }: { streams: Map<string, MediaStream> })
         data-testid="office-canvas"
         tabIndex={0}
         role="application"
-        aria-label="Escritório virtual. Use W A S D ou as setas para andar, ou clique no chão para ir até o ponto."
+        aria-label={
+          touch
+            ? "Escritório virtual. Arraste o joystick à esquerda para andar, ou toque no chão para ir até o ponto."
+            : "Escritório virtual. Use W A S D ou as setas para andar, ou clique no chão para ir até o ponto."
+        }
       />
       <div ref={anchorsRef} className="player-anchors">
         {Object.entries(state.players).map(([id, player]) => {

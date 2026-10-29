@@ -94,12 +94,12 @@ Objetivo: transformar o online funcional em algo que dá para mandar para qualqu
 | ✅ T1.3 | Nome/avatar persistidos no navegador | `localStorage` para perfil quando não há bridge desktop; restaurar no boot; opção de limpar | recarregar e abrir nova aba mantém nome/avatar; anônimo vira `Convidado NNNN` | 1 d |
 | ✅ T1.4 | Home web clara | esconder seção LAN no navegador, CTA "Entrar na sala", campo nome, contador de pessoas, link copiável | usuário novo entra em 2 cliques sem instruções; sem textos de "host" enganosos | 1 d |
 | T1.5 | Compartilhar | botão copiar link + `navigator.share` (mobile); QR fica para a Fase 2 | copiar/share funcionam em desktop e mobile | 0,5 d |
-| T1.6 | PWA instalável | `manifest.webmanifest` + ícones + service worker cache do shell + página de fallback sem rede | "adicionar à tela inicial" no Android/iOS; reabrir offline mostra shell com aviso; WS continua funcionando quando online | 1–1,5 d |
-| T1.7 | Mobile/touch | canvas responsivo (viewport dinâmico), joystick/mobile controls, safe-area, esconder dicas de teclado, chat usável no celular | Safari iOS + Chrome Android: andar, abrir chat, mídia; sem overflow/zoom acidental | 2–3 d |
+| ✅ T1.6 | PWA instalável | `manifest.webmanifest` + ícones + service worker cache do shell + página de fallback sem rede | "adicionar à tela inicial" no Android/iOS; reabrir offline mostra shell com aviso; WS continua funcionando quando online | 1–1,5 d |
+| ✅ T1.7 | Mobile/touch | canvas responsivo (viewport dinâmico), joystick/mobile controls, safe-area, esconder dicas de teclado, chat usável no celular | Safari iOS + Chrome Android: andar, abrir chat, mídia; sem overflow/zoom acidental | 2–3 d |
 | ✅ T1.8 | Reconexão visível | overlay “Reconectando… (tentativa n/10)”, retry manual, volta automática sem sair da tela (retomada de sessão preserva o jogador) | queda → overlay com tentativa → volta sozinho sem recarregar | 1 d |
 | T1.9 | Mídia na internet | `ICE_SERVERS` documentado + indicador de qualidade/estado; teste de câmera/mic nas configurações; unlock de áudio no mobile (gesto) | mídia conecta atrás de NAT comum; sem TURN, mensagem clara; áudio toca no celular após toque | 1–2 d |
 | ✅ T1.10 | Capacidade | `MAX_PLAYERS = 6`; contador e mensagem de sala cheia | o 7º jogador recebe `room_full` amigável (verificado no `verify-online`) | 0,5 d |
-| T1.11 | CI mínimo | GitHub Actions: typecheck + unit + build + `verify-online` (Chromium headless no runner) | push/PR roda verde; badge no README | 1 d |
+| ✅ T1.11 | CI mínimo | GitHub Actions: typecheck + unit + build + `verify-online` (Chromium headless no runner) | push/PR roda verde; badge no README | 1 d |
 | T1.12 | Domínio próprio (opcional) | Render custom domain + DNS (ex.: `app.dittoapp.dev`) | HTTPS válido; links antigos redirecionam | 0,5 d + compra do domínio (usuário) |
 
 Ordem recomendada dentro da Fase 1: **T1.1 → T1.2 → T1.3 → T1.4 → T1.6 → T1.7 → T1.8/9/10 → T1.5 → T1.11/12**.
@@ -242,5 +242,8 @@ Protótipo já entregue nesta rodada: **NET-1, NET-2 e NET-3** (ver commits e `v
   no navegador, home web) **concluídos** — verificação online 31/31, unit 34/34 e regressão offline 17/17.
 - **Pendente do usuário:** criar o serviço Render (`https://render.com/deploy?repo=https://github.com/luhno/Gat`)
   e informar a URL para eu validar o T1.1.
-- Próximas entregas web na ordem: **T1.6 PWA**, **T1.7 mobile/touch**, **T1.8 reconexão**, **T1.9 mídia/TURN**,
-  **T1.10 capacidade**, **T1.5 compartilhar**, **T1.11 CI**, **T1.12 domínio**.
+- **PWA (T1.6)**, **mobile/touch (T1.7)** e **CI GitHub Actions (T1.11)** concluídos:
+  `verify-pwa` 17/17, `verify-mobile` 27/27, workflow `.github/workflows/ci.yml` + badge no README.
+  Gates mantidos: online 31/31, e2e offline/LAN 17/17, unit 34/34.
+- Próximas entregas web: **T1.5 compartilhar (share sheet/QR)** e **T1.9 mídia/TURN no celular**;
+  T1.1 continua pendente do deploy Render do usuário.

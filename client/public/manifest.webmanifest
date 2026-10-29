@@ -1,0 +1,37 @@
+{
+  "name": "DittoApp",
+  "short_name": "Ditto",
+  "description": "Escritório virtual por link: entre na sala e converse por voz e vídeo conforme a proximidade.",
+  "lang": "pt-BR",
+  "start_url": "/room",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#16181d",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

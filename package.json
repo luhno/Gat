@@ -17,7 +17,9 @@
     "build:tests": "node scripts/build-tests.mjs",
     "test": "npm run build:tests && node --test \"dist/tests/**/*.test.js\"",
     "test:e2e": "node tests/e2e/run-e2e.mjs",
-    "dist": "npm run build && electron-builder --mac --dir"
+    "dist": "npm run build && electron-builder --mac --dir",
+    "build:online": "node deploy/build-online.mjs",
+    "test:online": "node deploy/verify-online.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

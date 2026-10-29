@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react"
 import { MAX_NAME_LENGTH } from "@shared/constants"
 
 import { initUiSound } from "./audio/uiSound"
+import { InstallPrompt } from "./components/InstallPrompt"
 import { Notice } from "./components/Notice"
 import { bootstrapDesktop, hasDesktopBridge, persistProfile } from "./desktop"
 import { HomeScreen } from "./home/HomeScreen"
@@ -64,6 +65,7 @@ export function App() {
   return (
     <>
       <HomeScreen />
+      <InstallPrompt />
       {bootError ? (
         <div className="boot-error">
           <Notice kind="error" onClose={() => setBootError(null)}>

@@ -108,6 +108,7 @@ export function ChatPanel({
           maxLength={MAX_CHAT_LENGTH}
           placeholder="Mensagem para a sala…"
           aria-label="Escrever mensagem"
+          enterKeyHint="send"
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Escape") {

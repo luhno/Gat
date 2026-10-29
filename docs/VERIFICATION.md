@@ -11,6 +11,14 @@ testado, como, e com quais evidências — incluindo o que **não** foi coberto.
 > link preview/favicon, home web sem ferramentas de LAN e perfil do navegador persistido
 > (`verify-online` 31/31, `npm test` 34/34).
 
+> **Fase 1 web — PWA, mobile e CI (2026-10-28):** PWA instalável verificada com
+> `node deploy/verify-pwa.mjs` (**17/17** — manifest/MIME/ícones, SW controlando a página, shell offline
+> real com aviso "sem conexão", rotas de runtime fora do cache), mobile/touch com
+> `node deploy/verify-mobile.mjs` (**27/27** — joystick move o avatar, chat/sheets, safe-area, sem
+> overflow em 320px, desktop intacto) e CI no GitHub Actions
+> ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml), badge no README; ver `docs/CI.md`).
+> Gates mantidos: `npm test` **34/34**, `verify-online` **31/31** e e2e offline/LAN **17/17**.
+
 O app é um estudo de engenharia reversa independente, não afiliado à Gather Presence Inc.
 
 ## Ambiente da rodada
@@ -37,8 +45,11 @@ Complementos (também executados nesta verificação):
 
 ```bash
 npm run typecheck    # tsc --noEmit
-npm test             # 30 testes de unidade (node --test)
-npm run dist         # electron-builder --mac --dir
+npm test             # 34 testes de unidade (node --test)
+node deploy/verify-online.mjs   # modo web (2 navegadores Chrome reais)
+node deploy/verify-pwa.mjs      # PWA: manifest, service worker, shell offline
+node deploy/verify-mobile.mjs   # mobile/touch: joystick, sheets, safe-area
+npm run dist         # electron-builder --mac --dir (legado/estudo)
 ```
 
 `npm run test:e2e` já compila o app antes de rodar; `--no-build` reaproveita `dist/`.

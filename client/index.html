@@ -2,7 +2,8 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Accessibility: pinch zoom is intentionally left enabled (no scale cap). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' wss: ws:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
@@ -15,6 +16,12 @@
     <meta property="og:description" content="Escritório virtual com chat e voz/vídeo por proximidade. Sem instalação: abra o link e entre." />
     <meta name="twitter:card" content="summary" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="DittoApp" />
     <title>DittoApp</title>
   </head>
   <body>

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client"
 
 import { getState } from "./state/store"
 import { App } from "./App"
+import { registerPwa } from "./pwa"
 import "./styles/global.css"
 
 // Read-only snapshot used by the offline/LAN e2e harness (tests/e2e). No control surface is exposed.
@@ -58,3 +59,5 @@ createRoot(document.getElementById("root") as HTMLElement).render(
     <App />
   </StrictMode>,
 )
+
+registerPwa()

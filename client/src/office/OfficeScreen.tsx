@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 
 import { playUiSound } from "../audio/uiSound"
 import { ChatPanel } from "../chat/ChatPanel"
@@ -14,6 +14,8 @@ import { ScreenSharePanel } from "../media/ScreenSharePanel"
 import { SoundboardPanel } from "../soundboard/SoundboardPanel"
 import { initSoundboardReceiver } from "../soundboard/soundboard"
 import { useMedia } from "../media/useMedia"
+import { useDynamicViewportHeight, useIsTouch } from "../mobile/useIsTouch"
+import { VirtualJoystick, type MoveVector } from "../mobile/VirtualJoystick"
 import { connection } from "../net/connection"
 import { actions, getState, useStore, type UiState } from "../state/store"
 import { OfficeCanvas } from "./OfficeCanvas"
@@ -53,6 +55,9 @@ const isTypingTarget = (target: EventTarget | null): boolean => {
 export function OfficeScreen() {
   const state = useStore()
   const { selfId, map, players } = state
+  const isTouch = useIsTouch()
+  useDynamicViewportHeight(isTouch)
+  const joystickMove = useRef<MoveVector>({ x: 0, y: 0 })
   const media = useMedia({ selfId, map, players })
   const mediaRef = useRef(media)
   mediaRef.current = media
@@ -84,6 +89,20 @@ export function OfficeScreen() {
   const errorRef = useRef(state.error)
 
   const activePanel = panelFromUi(state.ui)
+
+  // Swipe down on a panel header closes the bottom sheet (touch only); close button and Esc remain.
+  const sheetDrag = useRef<{ id: number; y: number } | null>(null)
+  const onSheetPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (!isTouch) return
+    if (!(event.target instanceof Element) || !event.target.closest(".panel-head")) return
+    sheetDrag.current = { id: event.pointerId, y: event.clientY }
+  }
+  const onSheetPointerUp = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const drag = sheetDrag.current
+    sheetDrag.current = null
+    if (!drag || drag.id !== event.pointerId) return
+    if (event.clientY - drag.y > 64) applyPanel(null)
+  }
 
   useEffect(() => {
     initSoundboardReceiver()
@@ -172,8 +191,8 @@ export function OfficeScreen() {
   const showNotice = Boolean(shareError) || Boolean(media.mediaError)
 
   return (
-    <div className="office-screen">
-      <OfficeCanvas streams={media.remoteStreams} />
+    <div className={isTouch ? "office-screen is-touch" : "office-screen"}>
+      <OfficeCanvas streams={media.remoteStreams} moveInput={isTouch ? joystickMove : undefined} touch={isTouch} />
       <TopBar
         room={state.room}
         playerCount={Object.keys(players).length}
@@ -193,31 +212,40 @@ export function OfficeScreen() {
         </div>
       ) : null}
 
-      <div className="office-side">
-        {activePanel === "chat" ? (
-          <ChatPanel
-            messages={state.chats}
-            onSend={(text) => {
-              const sent = connection.sendChat(text)
-              if (sent) playUiSound("chatSent")
-              return sent
-            }}
-            onClose={() => applyPanel(null)}
-          />
-        ) : null}
-        {activePanel === "participants" ? (
-          <ParticipantsPanel
-            players={players}
-            selfId={selfId}
-            address={window.location.origin.replace(/^https?:\/\//, "")}
-            onClose={() => applyPanel(null)}
-          />
-        ) : null}
-        {activePanel === "settings" ? (
-          <SettingsPanel media={media} profile={state.profile} onClose={() => applyPanel(null)} />
-        ) : null}
-        {activePanel === "soundboard" ? <SoundboardPanel onClose={() => applyPanel(null)} /> : null}
-      </div>
+      {activePanel ? (
+        <div
+          className="office-side"
+          onPointerDown={onSheetPointerDown}
+          onPointerUp={onSheetPointerUp}
+          onPointerCancel={() => {
+            sheetDrag.current = null
+          }}
+        >
+          {activePanel === "chat" ? (
+            <ChatPanel
+              messages={state.chats}
+              onSend={(text) => {
+                const sent = connection.sendChat(text)
+                if (sent) playUiSound("chatSent")
+                return sent
+              }}
+              onClose={() => applyPanel(null)}
+            />
+          ) : null}
+          {activePanel === "participants" ? (
+            <ParticipantsPanel
+              players={players}
+              selfId={selfId}
+              address={window.location.origin.replace(/^https?:\/\//, "")}
+              onClose={() => applyPanel(null)}
+            />
+          ) : null}
+          {activePanel === "settings" ? (
+            <SettingsPanel media={media} profile={state.profile} onClose={() => applyPanel(null)} />
+          ) : null}
+          {activePanel === "soundboard" ? <SoundboardPanel onClose={() => applyPanel(null)} /> : null}
+        </div>
+      ) : null}
 
       {media.screenSharing ? (
         <div className="sharing-pill" role="status">
@@ -226,6 +254,14 @@ export function OfficeScreen() {
             Parar
           </button>
         </div>
+      ) : null}
+
+      {isTouch ? (
+        <VirtualJoystick
+          onChange={(move) => {
+            joystickMove.current = move
+          }}
+        />
       ) : null}
 
       <Toolbar
@@ -239,6 +275,7 @@ export function OfficeScreen() {
         onToggleScreen={toggleScreenShare}
         onOpenPanel={togglePanel}
         onLeave={leave}
+        vertical={isTouch}
       />
 
       <MediaHealthHud media={media} />

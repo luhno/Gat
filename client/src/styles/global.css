@@ -621,7 +621,8 @@ button {
 .office-screen {
   position: relative;
   width: 100%;
-  height: 100%;
+  /* Mobile: useDynamicViewportHeight publishes the visual viewport (address bar/keyboard). */
+  height: var(--app-height, 100%);
   overflow: hidden;
   background: #0c0f15;
 }
@@ -1180,6 +1181,55 @@ button {
   transform: translateX(-50%);
 }
 
+/* ── Touch HUD: virtual joystick ──────────────────────────────────────────── */
+
+.joystick {
+  position: absolute;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  left: max(18px, env(safe-area-inset-left));
+  z-index: 22;
+  width: 132px;
+  height: 132px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, rgba(124, 92, 255, 0.16), rgba(23, 26, 35, 0.72) 72%);
+  box-shadow: var(--shadow);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  backdrop-filter: blur(6px);
+}
+
+.joystick-thumb {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(232, 235, 242, 0.24);
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* Touch: the local camera preview moves away from the joystick corner. */
+.is-touch .media-hud {
+  inset-block-start: calc(56px + env(safe-area-inset-top));
+  inset-block-end: auto;
+  max-width: 120px;
+}
+
+.is-touch .media-hud-tile {
+  width: 112px;
+}
+
+.is-touch .media-hud-tile.is-screen {
+  width: 140px;
+}
+
 /* Overlays */
 
 .overlay {
@@ -1319,33 +1369,155 @@ button {
   z-index: 50;
 }
 
+/* ── Mobile layout: phone portrait (desktop HUD untouched) ────────────────── */
+
 @media (max-width: 760px) {
+  /* Compact top bar: room/people/connection stay, LAN/room address lives in the panels. */
   .topbar {
-    gap: 10px;
-    max-width: calc(100vw - 20px);
+    top: max(8px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+    left: max(8px, env(safe-area-inset-left));
+    width: auto;
+    max-width: none;
+    gap: 8px;
     padding: 6px 10px;
+    transform: none;
   }
 
   .topbar-app,
-  .topbar-sep {
+  .topbar-sep,
+  .topbar-lan,
+  .topbar-latency {
     display: none;
   }
 
-  .topbar-lan code {
-    max-width: 110px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .topbar-name {
+    max-width: 34vw;
+  }
+
+  .topbar-count {
+    padding: 2px 7px;
+    font-size: 11.5px;
+  }
+
+  .office-notices {
+    top: calc(52px + env(safe-area-inset-top));
+    width: calc(100% - 16px);
+  }
+
+  /* Actions become a floating rail on the right; 46px stays above the 44px touch target. */
+  .toolbar {
+    top: 50%;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: auto;
+    left: auto;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    transform: translateY(-50%);
+  }
+
+  .toolbar-divider {
+    width: 28px;
+    height: 1px;
+    margin: 2px 0;
   }
 
   .tool-btn {
-    width: 42px;
-    height: 42px;
+    width: 46px;
+    height: 46px;
   }
 
+  .tool-btn-leave {
+    justify-content: center;
+    width: 46px;
+    padding: 0;
+  }
+
+  .tool-btn-text {
+    display: none;
+  }
+
+  /* Panels become bottom sheets: full width, close by button, header swipe-down or Esc. */
   .office-side {
-    top: 62px;
-    right: 8px;
-    bottom: 82px;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 35;
+    width: 100%;
+    height: 72vh;
+    height: min(72dvh, 640px);
+    /* On-screen keyboard: keep the sheet above it (--app-height follows visualViewport). */
+    max-height: calc(var(--app-height, 100dvh) - 64px);
+  }
+
+  .office-side .panel {
+    padding-bottom: env(safe-area-inset-bottom);
+    border-bottom: 0;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .office-side .panel-head {
+    position: relative;
+    padding-top: 18px;
+    touch-action: none; /* header is a drag-to-close handle, not a scroll area */
+  }
+
+  .office-side .panel-head::before {
+    content: "";
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.22);
+    transform: translateX(-50%);
+  }
+
+  .office-side .panel-head .icon-btn {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+
+  .chat-form {
+    padding: 10px 12px;
+  }
+
+  .chat-send {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* 16px inputs keep iOS Safari from zooming the page on focus. */
+  .field input,
+  .field select,
+  .chat-input {
+    font-size: 16px;
+  }
+
+  button {
+    touch-action: manipulation; /* no double-tap zoom on the HUD */
+  }
+
+  .sharing-pill {
+    top: calc(52px + env(safe-area-inset-top));
+    bottom: auto;
+    max-width: calc(100% - 16px);
+  }
+
+  /* Narrow screens are usually phones: keyboard shortcut hints are noise there. */
+  .home-footer-hint {
+    display: none;
+  }
+}
+
+/* Touch pointers get no keyboard-shortcut hints, regardless of width. */
+@media (pointer: coarse) {
+  .home-footer-hint {
+    display: none;
   }
 }
 

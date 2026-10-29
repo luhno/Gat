@@ -15,6 +15,7 @@ export function Toolbar({
   onToggleScreen,
   onOpenPanel,
   onLeave,
+  vertical = false,
 }: {
   audioEnabled: boolean
   videoEnabled: boolean
@@ -26,6 +27,8 @@ export function Toolbar({
   onToggleScreen: () => void
   onOpenPanel: (panel: PanelName) => void
   onLeave: () => void
+  /** Touch layout: floating rail on the right instead of the bottom bar. */
+  vertical?: boolean
 }) {
   const toggle = (on: boolean): string => `tool-btn${on ? " is-on" : ""}`
 
@@ -52,7 +55,7 @@ export function Toolbar({
   )
 
   return (
-    <footer className="toolbar" role="toolbar" aria-label="Controles da sala">
+    <footer className="toolbar" role="toolbar" aria-label="Controles da sala" aria-orientation={vertical ? "vertical" : "horizontal"}>
       {button(
         "toolbar-mic",
         audioEnabled ? "Desativar microfone" : "Ativar microfone",

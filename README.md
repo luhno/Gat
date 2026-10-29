@@ -1,5 +1,7 @@
 # DittoApp
 
+[![CI](https://github.com/luhno/Gat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/luhno/Gat/actions/workflows/ci.yml)
+
 Sala de escritório virtual privada, **100% web**: um link único e todos entram no mesmo escritório
 pelo navegador, com chat e voz/vídeo por proximidade. O app Electron/LAN continua no repositório
 como modo offline/legado de estudo. Feita a partir de engenharia reversa do `GatherV2.app` 0.55.2
@@ -70,6 +72,7 @@ DMG: `npx electron-builder --mac dmg`.
 - [`docs/QOL_AND_JUICE.md`](docs/QOL_AND_JUICE.md) — roadmap focado em QoL e game juice (sons,
   emotes, presença, ambiente e calibração de "feel").
 - [`docs/VERIFICATION.md`](docs/VERIFICATION.md) — matriz de verificação e evidências (screenshots).
+- [`docs/CI.md`](docs/CI.md) — o que roda no GitHub Actions, como reproduzir e por que o e2e Electron é manual.
 
 Artefatos da engenharia reversa ficam em `../recover/`: asar extraído, código-fonte recuperado dos
 source maps, bundle público do cliente web original e script de extração.
